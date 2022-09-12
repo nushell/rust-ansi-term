@@ -74,3 +74,4 @@
 ## 2022-09-12
 
 - add a changelog
+- fix some clippy lints
