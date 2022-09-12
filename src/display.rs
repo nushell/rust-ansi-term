@@ -9,7 +9,7 @@ use std::io;
 /// An `AnsiGenericString` includes a generic string type and a `Style` to
 /// display that string.  `AnsiString` and `AnsiByteString` are aliases for
 /// this type on `str` and `\[u8]`, respectively.
-#[derive(PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug)]
 pub struct AnsiGenericString<'a, S: 'a + ToOwned + ?Sized>
 where
     <S as ToOwned>::Owned: fmt::Debug,
@@ -119,7 +119,7 @@ where
 
 /// A set of `AnsiGenericStrings`s collected together, in order to be
 /// written with a minimum of control characters.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct AnsiGenericStrings<'a, S: 'a + ToOwned + ?Sized>(pub &'a [AnsiGenericString<'a, S>])
 where
     <S as ToOwned>::Owned: fmt::Debug,

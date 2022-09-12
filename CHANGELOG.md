@@ -71,3 +71,7 @@
 - update docs url
 - bump to 0.46
 
+## 2022-09-12
+
+- add a changelog
+- fix some clippy lints
