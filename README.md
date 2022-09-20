@@ -1,6 +1,6 @@
 # nu-ansi-term
 
-> This is a copy of rust-ansi-term but with Color change to Color and light foreground colors added (90-97) as well as light background colors added (100-107).
+> This is a copy of rust-ansi-term but with Colour change to Color and light foreground colors added (90-97) as well as light background colors added (100-107).
 
 This is a library for controlling colors and formatting, such as red bold text or blue underlined text, on ANSI terminals.
 
@@ -127,9 +127,9 @@ use nu_ansi_term::Color::RGB;
 RGB(70, 130, 180).paint("Steel blue");
 ```
 
-## Combining successive coloured strings
+## Combining successive colored strings
 
-The benefit of writing ANSI escape codes to the terminal is that they _stack_: you do not need to end every coloured string with a reset code if the text that follows it is of a similar style.
+The benefit of writing ANSI escape codes to the terminal is that they _stack_: you do not need to end every colored string with a reset code if the text that follows it is of a similar style.
 For example, if you want to have some blue text followed by some blue bold text, it’s possible to send the ANSI code for blue, followed by the ANSI code for bold, and finishing with a reset code without having to have an extra one between the two strings.
 
 This crate can optimise the ANSI codes that get printed in situations like this, making life easier for your terminal renderer.
