@@ -146,14 +146,6 @@ fn rgb_mul_f32(lhs: &Rgb, rhs: &f32) -> Rgb {
     )
 }
 
-fn f32_mul_rgb(lhs: &f32, rhs: &Rgb) -> Rgb {
-    Rgb::new(
-        (rhs.r as f32 * lhs.clamp(0.0, 1.0)) as u8,
-        (rhs.g as f32 * lhs.clamp(0.0, 1.0)) as u8,
-        (rhs.b as f32 * lhs.clamp(0.0, 1.0)) as u8,
-    )
-}
-
 fn rgb_negate(rgb: &Rgb) -> Rgb {
     Rgb::new(255 - rgb.r, 255 - rgb.g, 255 - rgb.b)
 }
@@ -258,7 +250,7 @@ impl std::ops::Mul<Rgb> for f32 {
     type Output = Rgb;
 
     fn mul(self, rhs: Rgb) -> Self::Output {
-        f32_mul_rgb(&self, &rhs)
+        rgb_mul_f32(&rhs, &self)
     }
 }
 
@@ -266,7 +258,7 @@ impl std::ops::Mul<&Rgb> for f32 {
     type Output = Rgb;
 
     fn mul(self, rhs: &Rgb) -> Self::Output {
-        f32_mul_rgb(&self, rhs)
+        rgb_mul_f32(rhs, &self)
     }
 }
 
@@ -274,7 +266,7 @@ impl std::ops::Mul<Rgb> for &f32 {
     type Output = Rgb;
 
     fn mul(self, rhs: Rgb) -> Self::Output {
-        f32_mul_rgb(self, &rhs)
+        rgb_mul_f32(&rhs, self)
     }
 }
 
@@ -282,7 +274,7 @@ impl std::ops::Mul<&Rgb> for &f32 {
     type Output = Rgb;
 
     fn mul(self, rhs: &Rgb) -> Self::Output {
-        f32_mul_rgb(self, rhs)
+        rgb_mul_f32(rhs, self)
     }
 }
 
