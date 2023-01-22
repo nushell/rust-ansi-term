@@ -23,8 +23,6 @@ A `Style` holds stylistic information: foreground and background colors, whether
 The `Color` enum represents the available colors.
 And an `AnsiString` is a string paired with a `Style`.
 
-`Color` is also available as an alias to `Color`.
-
 To format a string, call the `paint` method on a `Style` or a `Color`, passing in the string you want to format as the argument.
 For example, here’s how to get some red text:
 
