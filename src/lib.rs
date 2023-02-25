@@ -236,8 +236,6 @@
 #![warn(trivial_casts, trivial_numeric_casts)]
 // #![warn(unused_extern_crates, unused_qualifications)]
 
-#[cfg(target_os = "windows")]
-extern crate winapi;
 #[cfg(test)]
 #[macro_use]
 extern crate doc_comment;
@@ -258,7 +256,7 @@ pub use display::*;
 mod write;
 
 mod windows;
-pub use windows::*;
+pub use crate::windows::*;
 
 mod util;
 pub use util::*;
