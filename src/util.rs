@@ -2,11 +2,7 @@ use crate::display::{AnsiString, AnsiStrings};
 use std::ops::Deref;
 
 /// Return a substring of the given AnsiStrings sequence, while keeping the formatting.
-pub fn sub_string(
-    start: usize,
-    len: usize,
-    strs: &AnsiStrings,
-) -> Vec<AnsiString<'static>> {
+pub fn sub_string(start: usize, len: usize, strs: &AnsiStrings) -> Vec<AnsiString<'static>> {
     let mut vec = Vec::new();
     let mut pos = start;
     let mut len_rem = len;
