@@ -19,7 +19,7 @@ doctest = true
 derive_serde_style = ["serde"]
 
 [dependencies]
-serde = { version="1.0.90", features=["derive"], optional=true }
+serde = { version="1.0.152", features=["derive"], optional=true }
 
 [target.'cfg(windows)'.dependencies.windows]
 version = "0.45.0"
@@ -32,8 +32,8 @@ features = [
 ]
 
 [dev-dependencies]
-doc-comment = "0.3"
-regex = "1.1.9"
+doc-comment = "0.3.3"
+regex = "1.7.1"
 
 [dev-dependencies.serde_json]
-version = "1.0.39"
+version = "1.0.94"
