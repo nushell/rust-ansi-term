@@ -122,7 +122,7 @@ impl ANSIColorCode for Rgb {
     }
 }
 
-fn rgb_add(lhs: &Rgb, rhs: &Rgb) -> Rgb {
+const fn rgb_add(lhs: &Rgb, rhs: &Rgb) -> Rgb {
     Rgb::new(
         lhs.r.saturating_add(rhs.r),
         lhs.g.saturating_add(rhs.g),
@@ -130,7 +130,7 @@ fn rgb_add(lhs: &Rgb, rhs: &Rgb) -> Rgb {
     )
 }
 
-fn rgb_sub(lhs: &Rgb, rhs: &Rgb) -> Rgb {
+const fn rgb_sub(lhs: &Rgb, rhs: &Rgb) -> Rgb {
     Rgb::new(
         lhs.r.saturating_sub(rhs.r),
         lhs.g.saturating_sub(rhs.g),
@@ -146,7 +146,7 @@ fn rgb_mul_f32(lhs: &Rgb, rhs: &f32) -> Rgb {
     )
 }
 
-fn rgb_negate(rgb: &Rgb) -> Rgb {
+const fn rgb_negate(rgb: &Rgb) -> Rgb {
     Rgb::new(255 - rgb.r, 255 - rgb.g, 255 - rgb.b)
 }
 

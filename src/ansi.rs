@@ -194,7 +194,7 @@ impl Style {
     /// assert_eq!("",
     ///            style.prefix().to_string());
     /// ```
-    pub fn prefix(self) -> Prefix {
+    pub const fn prefix(self) -> Prefix {
         Prefix(self)
     }
 
@@ -219,7 +219,7 @@ impl Style {
     /// assert_eq!("",
     ///            style.infix(style).to_string());
     /// ```
-    pub fn infix(self, next: Style) -> Infix {
+    pub const fn infix(self, next: Style) -> Infix {
         Infix(self, next)
     }
 
@@ -243,7 +243,7 @@ impl Style {
     /// assert_eq!("",
     ///            style.suffix().to_string());
     /// ```
-    pub fn suffix(self) -> Suffix {
+    pub const fn suffix(self) -> Suffix {
         Suffix(self)
     }
 }

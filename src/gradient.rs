@@ -16,6 +16,7 @@ impl Gradient {
     pub const fn new(start: Rgb, end: Rgb) -> Self {
         Self { start, end }
     }
+
     pub const fn from_color_rgb(start: Color, end: Color) -> Self {
         let start_grad = match start {
             Color::Rgb(r, g, b) => Rgb { r, g, b },

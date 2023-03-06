@@ -107,7 +107,7 @@ where
     <S as ToOwned>::Owned: fmt::Debug,
 {
     /// Directly access the style
-    pub fn style_ref(&self) -> &Style {
+    pub const fn style_ref(&self) -> &Style {
         &self.style
     }
 
@@ -136,7 +136,7 @@ pub type AnsiStrings<'a> = AnsiGenericStrings<'a, str>;
 
 /// A function to construct an `AnsiStrings` instance.
 #[allow(non_snake_case)]
-pub fn AnsiStrings<'a>(arg: &'a [AnsiString<'a>]) -> AnsiStrings<'a> {
+pub const fn AnsiStrings<'a>(arg: &'a [AnsiString<'a>]) -> AnsiStrings<'a> {
     AnsiGenericStrings(arg)
 }
 
@@ -146,7 +146,7 @@ pub type AnsiByteStrings<'a> = AnsiGenericStrings<'a, [u8]>;
 
 /// A function to construct an `AnsiByteStrings` instance.
 #[allow(non_snake_case)]
-pub fn AnsiByteStrings<'a>(arg: &'a [AnsiByteString<'a>]) -> AnsiByteStrings<'a> {
+pub const fn AnsiByteStrings<'a>(arg: &'a [AnsiByteString<'a>]) -> AnsiByteStrings<'a> {
     AnsiGenericStrings(arg)
 }
 

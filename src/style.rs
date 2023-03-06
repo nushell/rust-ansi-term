@@ -71,7 +71,7 @@ impl Style {
     /// let style = Style::new().bold();
     /// println!("{}", style.paint("hey"));
     /// ```
-    pub fn bold(&self) -> Style {
+    pub const fn bold(&self) -> Style {
         Style {
             is_bold: true,
             ..*self
@@ -88,7 +88,7 @@ impl Style {
     /// let style = Style::new().dimmed();
     /// println!("{}", style.paint("sup"));
     /// ```
-    pub fn dimmed(&self) -> Style {
+    pub const fn dimmed(&self) -> Style {
         Style {
             is_dimmed: true,
             ..*self
@@ -105,7 +105,7 @@ impl Style {
     /// let style = Style::new().italic();
     /// println!("{}", style.paint("greetings"));
     /// ```
-    pub fn italic(&self) -> Style {
+    pub const fn italic(&self) -> Style {
         Style {
             is_italic: true,
             ..*self
@@ -122,7 +122,7 @@ impl Style {
     /// let style = Style::new().underline();
     /// println!("{}", style.paint("salutations"));
     /// ```
-    pub fn underline(&self) -> Style {
+    pub const fn underline(&self) -> Style {
         Style {
             is_underline: true,
             ..*self
@@ -138,7 +138,7 @@ impl Style {
     /// let style = Style::new().blink();
     /// println!("{}", style.paint("wazzup"));
     /// ```
-    pub fn blink(&self) -> Style {
+    pub const fn blink(&self) -> Style {
         Style {
             is_blink: true,
             ..*self
@@ -155,7 +155,7 @@ impl Style {
     /// let style = Style::new().reverse();
     /// println!("{}", style.paint("aloha"));
     /// ```
-    pub fn reverse(&self) -> Style {
+    pub const fn reverse(&self) -> Style {
         Style {
             is_reverse: true,
             ..*self
@@ -172,7 +172,7 @@ impl Style {
     /// let style = Style::new().hidden();
     /// println!("{}", style.paint("ahoy"));
     /// ```
-    pub fn hidden(&self) -> Style {
+    pub const fn hidden(&self) -> Style {
         Style {
             is_hidden: true,
             ..*self
@@ -189,7 +189,7 @@ impl Style {
     /// let style = Style::new().strikethrough();
     /// println!("{}", style.paint("yo"));
     /// ```
-    pub fn strikethrough(&self) -> Style {
+    pub const fn strikethrough(&self) -> Style {
         Style {
             is_strikethrough: true,
             ..*self
@@ -206,7 +206,7 @@ impl Style {
     /// let style = Style::new().fg(Color::Yellow);
     /// println!("{}", style.paint("hi"));
     /// ```
-    pub fn fg(&self, foreground: Color) -> Style {
+    pub const fn fg(&self, foreground: Color) -> Style {
         Style {
             foreground: Some(foreground),
             ..*self
@@ -223,7 +223,7 @@ impl Style {
     /// let style = Style::new().on(Color::Blue);
     /// println!("{}", style.paint("eyyyy"));
     /// ```
-    pub fn on(&self, background: Color) -> Style {
+    pub const fn on(&self, background: Color) -> Style {
         Style {
             background: Some(background),
             ..*self
