@@ -10,6 +10,9 @@ use nu_ansi_term::Color;
 // - 232 to 255 are shades of grey.
 
 fn main() {
+    #[cfg(windows)]
+    nu_ansi_term::enable_ansi_support().unwrap();
+
     // First two lines
     for c in 0..8 {
         glow(c, c != 0);

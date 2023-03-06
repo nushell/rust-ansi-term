@@ -9,6 +9,9 @@ const WIDTH: i32 = 80;
 const HEIGHT: i32 = 24;
 
 fn main() {
+    #[cfg(windows)]
+    nu_ansi_term::enable_ansi_support().unwrap();
+
     for row in 0..HEIGHT {
         for col in 0..WIDTH {
             let r = (row * 255 / HEIGHT) as u8;
