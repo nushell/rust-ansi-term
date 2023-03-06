@@ -21,7 +21,7 @@ derive_serde_style = ["serde"]
 [dependencies]
 serde = { version="1.0.90", features=["derive"], optional=true }
 
-[dependencies.windows]
+[target.'cfg(windows)'.dependencies.windows]
 version = "0.44"
 features = [
     "Win32_Foundation",
