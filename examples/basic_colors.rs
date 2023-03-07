@@ -1,4 +1,3 @@
-extern crate nu_ansi_term;
 use nu_ansi_term::{Color::*, Style};
 
 // This example prints out the 16 basic colors.

@@ -1,4 +1,3 @@
-extern crate nu_ansi_term;
 use nu_ansi_term::{Color, Style};
 
 // This example prints out a color gradient in a grid by calculating each

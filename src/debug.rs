@@ -120,7 +120,6 @@ mod test {
 
     #[test]
     fn long_and_detailed() {
-        extern crate regex;
         let expected_debug = "Style { fg(Blue), bold }";
         let expected_pretty_repat = r##"(?x)
         Style\s+\{\s+

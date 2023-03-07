@@ -237,11 +237,7 @@
 // #![warn(unused_extern_crates, unused_qualifications)]
 
 #[cfg(test)]
-#[macro_use]
-extern crate doc_comment;
-
-#[cfg(test)]
-doctest!("../README.md");
+doc_comment::doctest!("../README.md");
 
 pub mod ansi;
 pub use ansi::{Infix, Prefix, Suffix};

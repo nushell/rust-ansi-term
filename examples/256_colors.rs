@@ -1,4 +1,3 @@
-extern crate nu_ansi_term;
 use nu_ansi_term::Color;
 
 // This example prints out the 256 colors.
