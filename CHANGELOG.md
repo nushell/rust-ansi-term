@@ -1,77 +1,73 @@
-# nu-ansi-term changes
+# Changelog
 
-## 2021-02-22
+## v0.47.0 (Unreleased)
 
-- forked rust-ansi-term
-- renamed to nu-ansi-term
-- added nushell project contributors to the authors
-- updated readme.md
-- renamed `Colour` to `Color`
-- renamed some files ending in `colour` to `color`
-- added "bright" colors ansi 90-97 (foreground) and 100-107 (background)
-- ran cargo fmt
+- Updated to Rust edition 2021.
+- Replaced `winapi` dependency with `windows-sys`.
+- Removed `overload` dependency.
+- Added `AnsiGenericString::as_str()` to allow access to the underlying string.
+- Fixed typos in README.
+- Added `CHANGELOG.md` for changes since forking `ansi_term`.
 
+## v0.46.0 (2022-06-03)
 
-## 2021-03-26
+- Removed `impl Deref` for `AnsiGenericString`.
+- Improved README headings.
 
-- fix warnings for rust 1.51
+## v0.45.1 (2022-03-27)
 
-## 2021-04-09
+- Added `Color::Default` enum variant with ansi codes `39` and `49` for foreground & background.
 
-- make ansi pub to more easily use `ansi::RESET`
-- ignore some doc warnings
+## v0.45.0 (2022-03-16)
 
-## 2021-06-07
+- Fixed examples in README.
+- Fixed typos in documentation.
+- Renamed `ANSIByteStrings` to `AnsiByteStrings`.
+- Added GitHub Actions workflow.
+- Changed authors metadata.
+- Updated license
 
-- add gradient functionality
-- rework Rgb to support gradient
+## v0.43.0 (2022-01-18)
 
-## 2021-06-11
+- Fixed clippy warning.
 
-- enable `Default` for `Color`
+## v0.40.0 (2021-11-16)
 
-## 2021-09-09
+- Fixed clippy warning.
 
-- general minor refactorings
+## v0.38.0 (2021-10-05)
 
-## 2021-09-27
+- Removed `itertools` dependency.
 
-- remove some dependencies
+## v0.37.0 (2021-09-14)
 
-## 2021-11-14
+- Fixed clippy warnings.
 
-- tweaked assert
+## v0.31.0 (2021-05-11)
 
-## 2022-01-18
+- Implemented `Default` trait for `Color` returning `Color::White`.
+- Added helpers for gradients.
+- Fixed clippy warning.
 
-- fix some clippy lints
+## v0.30.0 (2021-04-21)
 
-## 2022-03-13
+- Export `ansi` module to expose `ansi::RESET`.
 
-- change authors text
-- update license
+## v0.29.0 (2021-03-30)
 
-## 2022-03-14
+- Renamed `Color::RGB` enum variant to `Color::Rgb`.
+- Renamed `ANSIByteString` to `AnsiByteString`.
+- Renamed `ANSIGenericString` to `AnsiGenericString`.
+- Renamed `ANSIGenericStrings` to `AnsiGenericStrings`.
+- Renamed `ANSIString` to `AnsiString`.
+- Renamed `ANSIStrings` to `AnsiStrings`.
 
-- add ci
+## v0.28.0 (2021-03-09)
 
-## 2022-03-15
-
-- bump to 0.45
-- rename AnsiByteStrings for consistency
-- update cargo.toml
-
-## 2022-03-26
-
-- add ansi default `39` foreground and default `49` background
-
-## 2022-06-03
-
-- code deref cleanup
-- update docs url
-- bump to 0.46
-
-## 2022-09-12
-
-- add a changelog
-- fix some clippy lints
+- Forked `ansi_term` as `nu-ansi-term`.
+- Added Nushell project contributors to the authors.
+- Updated README.md.
+- Renamed `Colour` to `Color`.
+- Renamed some files ending in `colour` to `color`.
+- Added "bright" colors ansi 90-97 (foreground) and 100-107 (background).
+- Ran cargo fmt
