@@ -19,8 +19,8 @@ jobs:
           toolchain: ${{ matrix.rust }}
           components: rustfmt, clippy
 
-      - run: cargo build
-      - run: cargo test
+      - run: cargo build --all-features
+      - run: cargo test --all-features
       - run: cargo fmt --check --all
       - run: cargo clippy -- -D warnings
       - run: cargo run --example 256_colors
