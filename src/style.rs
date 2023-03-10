@@ -280,7 +280,7 @@ impl Default for Style {
 ///
 /// These use the standard numeric sequences.
 /// See <http://invisible-island.net/xterm/ctlseqs/ctlseqs.html>
-#[derive(Eq, PartialEq, Clone, Copy, Debug)]
+#[derive(Eq, PartialEq, Clone, Copy, Debug, Default)]
 #[cfg_attr(
     feature = "derive_serde_style",
     derive(serde::Deserialize, serde::Serialize)
@@ -368,13 +368,8 @@ pub enum Color {
     Rgb(u8, u8, u8),
 
     /// The default color (foreground code `39`, background codr `49`).
+    #[default]
     Default,
-}
-
-impl Default for Color {
-    fn default() -> Self {
-        Color::White
-    }
 }
 
 impl Color {
