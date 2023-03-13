@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.47.0 (Unreleased)
+## v0.47.0 (2023-03-13)
 
 ### Breaking changes
 
