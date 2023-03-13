@@ -2,6 +2,15 @@
 
 ## v0.47.0 (Unreleased)
 
+### Breaking changes
+
+- Bumped minimum supported Rust version (MSRV) to 1.62.1
+- Change of `Color::default()` value to the ANSI default color `Color::Default` (code `39` and `49` for foreground and background respectively). This replaces `Color::White` as the default value.
+
+### Other changes
+
+- `const`ification of several functions and methods.
+- Improved CI workflow.
 - Updated to Rust edition 2021.
 - Replaced `winapi` dependency with `windows-sys`.
 - Removed `overload` dependency.
