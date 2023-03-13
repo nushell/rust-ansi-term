@@ -10,7 +10,7 @@ edition = "2021"
 rust-version = "1.62.1"
 license = "MIT"
 name = "nu-ansi-term"
-version = "0.46.0"
+version = "0.47.0"
 repository = "https://github.com/nushell/nu-ansi-term"
 
 [lib]
