@@ -594,7 +594,7 @@ mod serde_json_tests {
 
         assert_eq!(
             serde_json::to_string(&colors).unwrap(),
-            String::from("[\"Red\",\"Blue\",{\"Rgb\":[123,123,123]},{\"Fixed\":255}]")
+            "[\"Red\",\"Blue\",{\"Rgb\":[123,123,123]},{\"Fixed\":255}]"
         );
     }
 
