@@ -93,10 +93,6 @@ mod test {
     use crate::style::Color::*;
     use crate::style::Style;
 
-    fn style() -> Style {
-        Style::new()
-    }
-
     macro_rules! test {
         ($name: ident: $obj: expr => $result: expr) => {
             #[test]
@@ -106,10 +102,10 @@ mod test {
         };
     }
 
-    test!(empty:   style()                  => "Style {}");
-    test!(bold:    style().bold()           => "Style { bold }");
-    test!(italic:  style().italic()         => "Style { italic }");
-    test!(both:    style().bold().italic()  => "Style { bold, italic }");
+    test!(empty:   Style::new()                  => "Style {}");
+    test!(bold:    Style::new().bold()           => "Style { bold }");
+    test!(italic:  Style::new().italic()         => "Style { italic }");
+    test!(both:    Style::new().bold().italic()  => "Style { bold, italic }");
 
     test!(red:     Red.normal()                     => "Style { fg(Red) }");
     test!(redblue: Red.normal().on(Rgb(3, 2, 4))    => "Style { fg(Red), on(Rgb(3, 2, 4)) }");
