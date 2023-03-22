@@ -259,8 +259,8 @@ impl Color {
     /// ```
     /// use nu_ansi_term::Color::Green;
     ///
-    /// assert_eq!("\x1b[0m",
-    ///            Green.suffix().to_string());
+    /// assert_eq!("\x1b[32m",
+    ///            Green.prefix().to_string());
     /// ```
     pub fn prefix(self) -> Prefix {
         Prefix(self.normal())
