@@ -232,12 +232,11 @@
 #![crate_name = "nu_ansi_term"]
 #![crate_type = "rlib"]
 #![warn(missing_copy_implementations)]
-// #![warn(missing_docs)]
 #![warn(trivial_casts, trivial_numeric_casts)]
-// #![warn(unused_extern_crates, unused_qualifications)]
 
-#[cfg(test)]
-doc_comment::doctest!("../README.md");
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+pub struct ReadmeTests;
 
 pub mod ansi;
 pub use ansi::{Infix, Prefix, Suffix};

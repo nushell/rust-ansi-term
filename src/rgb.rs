@@ -67,34 +67,6 @@ impl Rgb {
         Self::from_f32(x, x, x)
     }
 
-    /// Creates a new [Rgb] color from a [HSL] color
-    // pub fn from_hsl(hsl: HSL) -> Self {
-    //     if hsl.s == 0.0 {
-    //         return Self::gray_f32(hsl.l);
-    //     }
-
-    //     let q = if hsl.l < 0.5 {
-    //         hsl.l * (1.0 + hsl.s)
-    //     } else {
-    //         hsl.l + hsl.s - hsl.l * hsl.s
-    //     };
-    //     let p = 2.0 * hsl.l - q;
-    //     let h2c = |t: f32| {
-    //         let t = t.clamp(0.0, 1.0);
-    //         if 6.0 * t < 1.0 {
-    //             p + 6.0 * (q - p) * t
-    //         } else if t < 0.5 {
-    //             q
-    //         } else if 1.0 < 1.5 * t {
-    //             p + 6.0 * (q - p) * (1.0 / 1.5 - t)
-    //         } else {
-    //             p
-    //         }
-    //     };
-
-    //     Self::from_f32(h2c(hsl.h + 1.0 / 3.0), h2c(hsl.h), h2c(hsl.h - 1.0 / 3.0))
-    // }
-
     /// Computes the linear interpolation between `self` and `other` for `t`
     pub fn lerp(&self, other: Self, t: f32) -> Self {
         let t = t.clamp(0.0, 1.0);

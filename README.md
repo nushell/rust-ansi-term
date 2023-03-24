@@ -120,9 +120,9 @@ There’s nothing stopping you from using these as `Fixed` colors instead, but t
 You can also access full 24-bit color by using the `Color::RGB` variant, which takes separate `u8` arguments for red, green, and blue:
 
 ```rust
-use nu_ansi_term::Color::RGB;
+use nu_ansi_term::Color::Rgb;
 
-RGB(70, 130, 180).paint("Steel blue");
+Rgb(70, 130, 180).paint("Steel blue");
 ```
 
 ## Combining successive colored strings
