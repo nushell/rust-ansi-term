@@ -44,7 +44,6 @@ impl Gradient {
         Self::new(self.end, self.start)
     }
 
-    #[allow(dead_code)]
     pub fn build(&self, text: &str, target: TargetGround) -> String {
         let delta = 1.0 / text.len() as f32;
         let mut result = text.char_indices().fold(String::new(), |mut acc, (i, c)| {
@@ -62,7 +61,6 @@ impl Gradient {
     }
 }
 
-#[allow(dead_code)]
 pub fn build_all_gradient_text(text: &str, foreground: Gradient, background: Gradient) -> String {
     let delta = 1.0 / text.len() as f32;
     let mut result = text.char_indices().fold(String::new(), |mut acc, (i, c)| {
