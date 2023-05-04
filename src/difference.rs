@@ -43,6 +43,10 @@ impl Difference {
             return Empty;
         }
 
+        if first.has_sgr() && !next.has_sgr() {
+            return Reset;
+        }
+
         // Cannot un-bold, so must Reset.
         if first.is_bold && !next.is_bold {
             return Reset;
@@ -87,6 +91,10 @@ impl Difference {
             return Reset;
         }
 
+        if first.oscontrol.is_some() && next.oscontrol.is_none() {
+            return Reset;
+        }
+
         let mut extra_styles = Style::default();
 
         if first.is_bold != next.is_bold {
@@ -127,6 +135,10 @@ impl Difference {
 
         if first.background != next.background {
             extra_styles.background = next.background;
+        }
+
+        if first.oscontrol != next.oscontrol {
+            extra_styles.oscontrol = next.oscontrol;
         }
 
         ExtraStyles(extra_styles)

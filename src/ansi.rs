@@ -1,5 +1,5 @@
 #![allow(missing_docs)]
-use crate::style::{Color, Style};
+use crate::style::{Color, OSControl, Style};
 use crate::write::AnyWrite;
 use std::fmt;
 
@@ -13,74 +13,94 @@ impl Style {
             return Ok(());
         }
 
-        // Prefix everything with reset characters if needed
-        if self.with_reset {
-            write!(f, "\x1B[0m")?
-        }
+        if self.has_sgr() {
+            // Prefix everything with reset characters if needed
+            if self.with_reset {
+                write!(f, "\x1B[0m")?
+            }
 
-        // Write the codes’ prefix, then write numbers, separated by
-        // semicolons, for each text style we want to apply.
-        write!(f, "\x1B[")?;
-        let mut written_anything = false;
+            // "Specified Graphical Rendition" prefixes
+            // Write the codes’ prefix, then write numbers, separated by
+            // semicolons, for each text style we want to apply.
+            write!(f, "\x1B[")?;
+            let mut written_anything = false;
 
-        {
-            let mut write_char = |c| {
+            {
+                let mut write_char = |c| {
+                    if written_anything {
+                        write!(f, ";")?;
+                    }
+                    written_anything = true;
+                    #[cfg(feature = "gnu_legacy")]
+                    write!(f, "0")?;
+                    write!(f, "{}", c)?;
+                    Ok(())
+                };
+
+                if self.is_bold {
+                    write_char('1')?
+                }
+                if self.is_dimmed {
+                    write_char('2')?
+                }
+                if self.is_italic {
+                    write_char('3')?
+                }
+                if self.is_underline {
+                    write_char('4')?
+                }
+                if self.is_blink {
+                    write_char('5')?
+                }
+                if self.is_reverse {
+                    write_char('7')?
+                }
+                if self.is_hidden {
+                    write_char('8')?
+                }
+                if self.is_strikethrough {
+                    write_char('9')?
+                }
+            }
+
+            // The foreground and background colors, if specified, need to be
+            // handled specially because the number codes are more complicated.
+            // (see `write_background_code` and `write_foreground_code`)
+            if let Some(bg) = self.background {
                 if written_anything {
                     write!(f, ";")?;
                 }
                 written_anything = true;
-                #[cfg(feature = "gnu_legacy")]
-                write!(f, "0")?;
-                write!(f, "{}", c)?;
-                Ok(())
-            };
+                bg.write_background_code(f)?;
+            }
 
-            if self.is_bold {
-                write_char('1')?
+            if let Some(fg) = self.foreground {
+                if written_anything {
+                    write!(f, ";")?;
+                }
+                fg.write_foreground_code(f)?;
             }
-            if self.is_dimmed {
-                write_char('2')?
-            }
-            if self.is_italic {
-                write_char('3')?
-            }
-            if self.is_underline {
-                write_char('4')?
-            }
-            if self.is_blink {
-                write_char('5')?
-            }
-            if self.is_reverse {
-                write_char('7')?
-            }
-            if self.is_hidden {
-                write_char('8')?
-            }
-            if self.is_strikethrough {
-                write_char('9')?
-            }
+
+            // All the SGR codes end with an `m`, because reasons.
+            write!(f, "m")?;
         }
 
-        // The foreground and background colors, if specified, need to be
-        // handled specially because the number codes are more complicated.
-        // (see `write_background_code` and `write_foreground_code`)
-        if let Some(bg) = self.background {
-            if written_anything {
-                write!(f, ";")?;
+        // OS Control (OSC) prefixes
+        match self.oscontrol {
+            Some(OSControl::Hyperlink) => {
+                write!(f, "\x1B]8;;")?;
             }
-            written_anything = true;
-            bg.write_background_code(f)?;
-        }
-
-        if let Some(fg) = self.foreground {
-            if written_anything {
-                write!(f, ";")?;
+            Some(OSControl::Title) => {
+                write!(f, "\x1B]2;")?;
             }
-            fg.write_foreground_code(f)?;
+            Some(OSControl::Icon) => {
+                write!(f, "\x1B]I;")?;
+            }
+            Some(OSControl::Cwd) => {
+                write!(f, "\x1B]7;")?;
+            }
+            None => {}
         }
-
-        // All the codes end with an `m`, because reasons.
-        write!(f, "m")?;
 
         Ok(())
     }
@@ -90,13 +110,27 @@ impl Style {
         if self.is_plain() {
             Ok(())
         } else {
-            write!(f, "{}", RESET)
+            match self.oscontrol {
+                Some(OSControl::Hyperlink) => {
+                    write!(f, "{}{}", HYPERLINK_RESET, RESET)
+                }
+                Some(OSControl::Title) | Some(OSControl::Icon) | Some(OSControl::Cwd) => {
+                    write!(f, "{}", ST)
+                }
+                _ => {
+                    write!(f, "{}", RESET)
+                }
+            }
         }
     }
 }
 
 /// The code to send to reset all styles and return to `Style::default()`.
 pub static RESET: &str = "\x1B[0m";
+
+// The "String Termination" code. Used for OS Control (OSC) sequences.
+static ST: &str = "\x1B\\";
+pub(crate) static HYPERLINK_RESET: &str = "\x1B]8;;\x1B\\";
 
 impl Color {
     fn write_foreground_code<W: AnyWrite + ?Sized>(&self, f: &mut W) -> Result<(), W::Error> {
@@ -362,7 +396,33 @@ impl fmt::Display for Infix {
             }
             Difference::Reset => {
                 let f: &mut dyn fmt::Write = f;
-                write!(f, "{}{}", RESET, self.1.prefix())
+
+                match (self.0, self.1) {
+                    (
+                        Style {
+                            oscontrol: Some(OSControl::Hyperlink),
+                            ..
+                        },
+                        Style {
+                            oscontrol: None, ..
+                        },
+                    ) => {
+                        write!(f, "{}{}", HYPERLINK_RESET, self.1.prefix())
+                    }
+                    (
+                        Style {
+                            oscontrol: Some(_), ..
+                        },
+                        Style {
+                            oscontrol: None, ..
+                        },
+                    ) => {
+                        write!(f, "{}{}", ST, self.1.prefix())
+                    }
+                    (_, _) => {
+                        write!(f, "{}{}", RESET, self.1.prefix())
+                    }
+                }
             }
             Difference::Empty => {
                 Ok(()) // nothing to write
