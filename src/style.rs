@@ -81,7 +81,6 @@ impl Style {
         }
     }
 
-
     /// Returns a `Style` with the bold property set.
     ///
     /// # Examples
