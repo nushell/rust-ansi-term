@@ -44,6 +44,9 @@ pub struct Style {
 
     /// Whether this style is struckthrough.
     pub is_strikethrough: bool,
+
+    /// Wether this style starts with reset code
+    pub with_reset: bool,
 }
 
 impl Style {
@@ -60,6 +63,24 @@ impl Style {
     pub fn new() -> Style {
         Style::default()
     }
+
+    /// Returns a `Style` with the resetted property set.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use nu_ansi_term::Style;
+    ///
+    /// let style = Style::new().resetted();
+    /// println!("{}", style.paint("hey"));
+    /// ```
+    pub const fn resetted(&self) -> Style {
+        Style {
+            with_reset: true,
+            ..*self
+        }
+    }
+
 
     /// Returns a `Style` with the bold property set.
     ///
@@ -269,6 +290,7 @@ impl Default for Style {
             is_reverse: false,
             is_hidden: false,
             is_strikethrough: false,
+            with_reset: false,
         }
     }
 }
@@ -542,6 +564,25 @@ impl Color {
         }
     }
 
+    /// Returns a `Style` thats resets all styling before applying
+    /// the foreground color set to this color.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use nu_ansi_term::Color;
+    ///
+    /// let style = Color::Fixed(244).resetted();
+    /// println!("{}", style.paint("yo"));
+    /// ```
+    pub fn resetted(self) -> Style {
+        Style {
+            foreground: Some(self),
+            with_reset: true,
+            ..Style::default()
+        }
+    }
+
     /// Returns a `Style` with the foreground color set to this color and the
     /// background color property set to the given color.
     ///
@@ -619,6 +660,6 @@ mod serde_json_tests {
     fn style_serialization() {
         let style = Style::default();
 
-        assert_eq!(serde_json::to_string(&style).unwrap(), "{\"foreground\":null,\"background\":null,\"is_bold\":false,\"is_dimmed\":false,\"is_italic\":false,\"is_underline\":false,\"is_blink\":false,\"is_reverse\":false,\"is_hidden\":false,\"is_strikethrough\":false}".to_string());
+        assert_eq!(serde_json::to_string(&style).unwrap(), "{\"foreground\":null,\"background\":null,\"is_bold\":false,\"is_dimmed\":false,\"is_italic\":false,\"is_underline\":false,\"is_blink\":false,\"is_reverse\":false,\"is_hidden\":false,\"is_strikethrough\":false,\"with_reset\":false}".to_string());
     }
 }
