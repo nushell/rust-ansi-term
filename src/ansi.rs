@@ -182,6 +182,8 @@ impl Style {
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(not(feature = "gnu_legacy"))]
+    /// # {
     /// use nu_ansi_term::{Style, Color::Blue};
     ///
     /// let style = Style::default().bold();
@@ -195,6 +197,25 @@ impl Style {
     /// let style = Style::default();
     /// assert_eq!("",
     ///            style.prefix().to_string());
+    /// # }
+    /// ```
+    ///     
+    /// # Examples with gnu_legacy feature enabled
+    /// Styles like bold, underlined, etc. are two-digit now
+    ///
+    /// ```
+    /// # #[cfg(feature = "gnu_legacy")]
+    /// # {
+    /// use nu_ansi_term::{Style, Color::Blue};
+    ///
+    /// let style = Style::default().bold();
+    /// assert_eq!("\x1b[01m",
+    ///            style.prefix().to_string());
+    ///
+    /// let style = Blue.bold();
+    /// assert_eq!("\x1b[01;34m",
+    ///            style.prefix().to_string());
+    /// # }
     /// ```
     pub const fn prefix(self) -> Prefix {
         Prefix(self)
@@ -205,8 +226,9 @@ impl Style {
     /// a reset followed by the next color and style, depending on the two styles.
     ///
     /// # Examples
-    ///
     /// ```
+    /// # #[cfg(not(feature = "gnu_legacy"))]
+    /// # {
     /// use nu_ansi_term::{Style, Color::Green};
     ///
     /// let style = Style::default().bold();
@@ -220,6 +242,19 @@ impl Style {
     /// let style = Style::default();
     /// assert_eq!("",
     ///            style.infix(style).to_string());
+    /// # }
+    /// ```
+    /// # Examples with gnu_legacy feature enabled
+    /// Styles like bold, underlined, etc. are two-digit now
+    /// ```
+    /// # #[cfg(feature = "gnu_legacy")]
+    /// # {
+    /// use nu_ansi_term::Color::Green;
+    /// 
+    /// let style = Green.normal();
+    /// assert_eq!("\x1b[01m",
+    ///            style.infix(Green.bold()).to_string());
+    /// # }
     /// ```
     pub const fn infix(self, next: Style) -> Infix {
         Infix(self, next)
