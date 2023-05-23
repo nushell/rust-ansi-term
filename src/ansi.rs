@@ -250,7 +250,7 @@ impl Style {
     /// # #[cfg(feature = "gnu_legacy")]
     /// # {
     /// use nu_ansi_term::Color::Green;
-    /// 
+    ///
     /// let style = Green.normal();
     /// assert_eq!("\x1b[01m",
     ///            style.infix(Green.bold()).to_string());
