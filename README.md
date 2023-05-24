@@ -105,6 +105,18 @@ Red.normal().paint("yet another red string");
 Style::default().paint("a completely regular string");
 ```
 
+Sometimes it is desirable to hard-reset a style/color just before
+applying a new one. To reset and apply, the `reset_before_style` method can
+be used on either `Color` or `Style` structs.
+
+```rust
+use nu_ansi_term::Style;
+
+println!("\x1b[33mHow about some {} \x1b[33mand {}?\x1b[0m",
+         Style::new().reset_before_style().bold().paint("bold"),
+         Style::new().reset_before_style().underline().paint("underline"));
+```
+
 ## Extended colors
 
 You can access the extended range of 256 colors by using the `Color::Fixed` variant, which takes an argument of the color number to use.
