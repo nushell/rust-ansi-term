@@ -13,6 +13,9 @@ This crate works with [Cargo](http://crates.io). Add the following to your `Carg
 ```toml
 [dependencies]
 nu-ansi-term = "0.47"
+
+# optional gnu-legacy mode to have two digit instead of one digit styles
+nu-ansi-term = { version="0.47", features=["gnu_legacy"] }
 ```
 
 ## Basic usage

@@ -18,6 +18,7 @@ doctest = true
 
 [features]
 derive_serde_style = ["serde"]
+gnu_legacy = []
 
 [dependencies]
 serde = { version="1.0.152", features=["derive"], optional=true }
