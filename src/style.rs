@@ -64,17 +64,17 @@ impl Style {
         Style::default()
     }
 
-    /// Returns a `Style` with the resetted property set.
+    /// Returns a `Style` with the reset_before_style property set.
     ///
     /// # Examples
     ///
     /// ```
     /// use nu_ansi_term::Style;
     ///
-    /// let style = Style::new().resetted();
+    /// let style = Style::new().reset_before_style();
     /// println!("{}", style.paint("hey"));
     /// ```
-    pub const fn resetted(&self) -> Style {
+    pub const fn reset_before_style(&self) -> Style {
         Style {
             with_reset: true,
             ..*self
@@ -571,10 +571,10 @@ impl Color {
     /// ```
     /// use nu_ansi_term::Color;
     ///
-    /// let style = Color::Fixed(244).resetted();
+    /// let style = Color::Fixed(244).reset_before_style();
     /// println!("{}", style.paint("yo"));
     /// ```
-    pub fn resetted(self) -> Style {
+    pub fn reset_before_style(self) -> Style {
         Style {
             foreground: Some(self),
             with_reset: true,
