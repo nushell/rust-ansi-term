@@ -1,10 +1,31 @@
-use crate::ansi::{HYPERLINK_RESET, RESET};
+use crate::ansi::RESET;
 use crate::difference::Difference;
-use crate::style::{Color, OSControl, Style};
+use crate::style::{Color, Style};
 use crate::write::AnyWrite;
 use std::borrow::Cow;
 use std::fmt;
 use std::io;
+
+#[derive(Eq, PartialEq, Debug)]
+enum OSControl<'a, S: 'a + ToOwned + ?Sized>
+where
+    <S as ToOwned>::Owned: fmt::Debug,
+{
+    Title,
+    Link { url: Cow<'a, S> },
+}
+
+impl<'a, S: 'a + ToOwned + ?Sized> Clone for OSControl<'a, S>
+where
+    <S as ToOwned>::Owned: fmt::Debug,
+{
+    fn clone(&self) -> Self {
+        match self {
+            Self::Link { url: u } => Self::Link { url: u.clone() },
+            Self::Title => Self::Title,
+        }
+    }
+}
 
 /// An `AnsiGenericString` includes a generic string type and a `Style` to
 /// display that string.  `AnsiString` and `AnsiByteString` are aliases for
@@ -16,7 +37,7 @@ where
 {
     pub(crate) style: Style,
     pub(crate) string: Cow<'a, S>,
-    pub(crate) params: Option<Cow<'a, S>>,
+    oscontrol: Option<OSControl<'a, S>>,
 }
 
 /// Cloning an `AnsiGenericString` will clone its underlying string.
@@ -38,7 +59,7 @@ where
         AnsiGenericString {
             style: self.style,
             string: self.string.clone(),
-            params: self.params.clone(),
+            oscontrol: self.oscontrol.clone(),
         }
     }
 }
@@ -100,7 +121,7 @@ where
         AnsiGenericString {
             string: input.into(),
             style: Style::default(),
-            params: None,
+            oscontrol: None,
         }
     }
 }
@@ -109,83 +130,56 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericString<'a, S>
 where
     <S as ToOwned>::Owned: fmt::Debug,
 {
+    /// Directly access the style
+    pub const fn style_ref(&self) -> &Style {
+        &self.style
+    }
+
+    /// Directly access the style mutably
+    pub fn style_ref_mut(&mut self) -> &mut Style {
+        &mut self.style
+    }
+
+    /// Directly access the underlying string
+    pub fn as_str(&self) -> &S {
+        self.string.as_ref()
+    }
+
+    // Instances that imply wrapping in OSC sequences
+    // and do not get displayed in the terminal text
+    // area.
+    //
     /// Produce an ANSI string that changes the title shown
     /// by the terminal emulator.
     ///
     /// # Examples
     ///
     /// ```
-    /// use nu_ansi_term::AnsiString;
-    /// let title_string = AnsiString::title("My Title");
+    /// use nu_ansi_term::AnsiGenericString;
+    /// let title_string = AnsiGenericString::title("My Title");
     /// println!("{}", title_string);
     /// ```
     /// Should produce an empty line but set the terminal title.
-    pub fn title<I>(title: I) -> AnsiGenericString<'a, S>
+    pub fn title<I>(s: I) -> Self
     where
         I: Into<Cow<'a, S>>,
     {
         Self {
-            string: title.into(),
-            style: Style::title(),
-            params: None,
+            style: Style::default(),
+            string: s.into(),
+            oscontrol: Some(OSControl::<'a, S>::Title),
         }
     }
 
-    /// Produce an ANSI string that notifies the terminal
-    /// emulator that the running application is better
-    /// represented by the icon found at a given path.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use nu_ansi_term::AnsiString;
-    /// let icon_string = AnsiString::icon(std::path::Path::new("foo/bar.icn").to_string_lossy());
-    /// println!("{}", icon_string);
-    /// ```
-    /// Should produce an empty line but set the terminal icon.
-    /// Notice that we use std::path to be portable.
-    pub fn icon<I>(path: I) -> AnsiGenericString<'a, S>
-    where
-        I: Into<Cow<'a, S>>,
-    {
-        Self {
-            string: path.into(),
-            style: Style::icon(),
-            params: None,
-        }
-    }
-
-    /// Produce an ANSI string that notifies the terminal
-    /// emulator the current working directory has changed
-    /// to the given path.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use nu_ansi_term::AnsiString;
-    /// let cwd_string = AnsiString::cwd(std::path::Path::new("/foo/bar").to_string_lossy());
-    /// println!("{}", cwd_string);
-    /// ```
-    /// Should produce an empty line but inform the terminal emulator
-    /// that the current directory is /foo/bar.
-    /// Notice that we use std::path to be portable.
-    pub fn cwd<I>(path: I) -> AnsiGenericString<'a, S>
-    where
-        I: Into<Cow<'a, S>>,
-    {
-        Self {
-            string: path.into(),
-            style: Style::cwd(),
-            params: None,
-        }
-    }
+    //
+    // Annotations (OSC sequences that do more than wrap)
+    //
 
     /// Cause the styled ANSI string to link to the given URL
     ///
     /// # Examples
     ///
     /// ```
-    /// use nu_ansi_term::AnsiString;
     /// use nu_ansi_term::Color::Red;
     ///
     /// let mut link_string = Red.paint("a red string");
@@ -198,23 +192,15 @@ where
     where
         I: Into<Cow<'a, S>>,
     {
-        self.style.hyperlink();
-        self.params = Some(url.into());
+        self.oscontrol = Some(OSControl::Link { url: url.into() });
     }
 
-    /// Directly access the style
-    pub const fn style_ref(&self) -> &Style {
-        &self.style
-    }
-
-    /// Directly access the style mutably
-    pub fn style_ref_mut(&mut self) -> &mut Style {
-        &mut self.style
-    }
-
-    // Directly access the underlying string
-    pub fn as_str(&self) -> &S {
-        self.string.as_ref()
+    /// Get any URL associated with the string
+    pub fn url_string(&self) -> Option<&S> {
+        match &self.oscontrol {
+            Some(OSControl::Link { url: u }) => Some(u.as_ref()),
+            _ => None,
+        }
     }
 }
 
@@ -259,7 +245,7 @@ impl Style {
         AnsiGenericString {
             string: input.into(),
             style: self,
-            params: None,
+            oscontrol: None,
         }
     }
 }
@@ -282,7 +268,7 @@ impl Color {
         AnsiGenericString {
             string: input.into(),
             style: self.normal(),
-            params: None,
+            oscontrol: None,
         }
     }
 }
@@ -310,13 +296,28 @@ where
     <S as ToOwned>::Owned: fmt::Debug,
     &'a S: AsRef<[u8]>,
 {
+    // write the part within the styling prefix and suffix
+    fn write_inner<W: AnyWrite<Wstr = S> + ?Sized>(&self, w: &mut W) -> Result<(), W::Error> {
+        match &self.oscontrol {
+            Some(OSControl::Link { url: u }) => {
+                write!(w, "\x1B]8;;")?;
+                w.write_str(u.as_ref())?;
+                write!(w, "\x1B\x5C")?;
+                w.write_str(self.string.as_ref())?;
+                write!(w, "\x1B]8;;\x1B\x5C")
+            }
+            Some(OSControl::Title) => {
+                write!(w, "\x1B]2;")?;
+                w.write_str(self.string.as_ref())?;
+                write!(w, "\x1B\x5C")
+            }
+            None => w.write_str(self.string.as_ref()),
+        }
+    }
+
     fn write_to_any<W: AnyWrite<Wstr = S> + ?Sized>(&self, w: &mut W) -> Result<(), W::Error> {
         write!(w, "{}", self.style.prefix())?;
-        if let (Some(s), Some(_)) = (&self.params, self.style.oscontrol) {
-            w.write_str(s.as_ref())?;
-            write!(w, "\x1B\\")?;
-        }
-        w.write_str(self.string.as_ref())?;
+        self.write_inner(w)?;
         write!(w, "{}", self.style.suffix())
     }
 }
@@ -354,59 +355,16 @@ where
         };
 
         write!(w, "{}", first.style.prefix())?;
-        if let (Some(s), Some(_)) = (&first.params, first.style.oscontrol) {
-            w.write_str(s.as_ref())?;
-            write!(w, "\x1B\\")?;
-        }
-        w.write_str(first.string.as_ref())?;
+        first.write_inner(w)?;
 
         for window in self.0.windows(2) {
             match Difference::between(&window[0].style, &window[1].style) {
-                ExtraStyles(style) => {
-                    write!(w, "{}", style.prefix())?;
-                    if let (Some(OSControl::Hyperlink), Some(s)) =
-                        (style.oscontrol, &window[1].params)
-                    {
-                        w.write_str(s.as_ref())?;
-                        write!(w, "\x1B\\")?;
-                    }
-                }
-                Reset => match (&window[0].style, &window[1].style) {
-                    (
-                        Style {
-                            oscontrol: Some(OSControl::Hyperlink),
-                            ..
-                        },
-                        Style {
-                            oscontrol: None, ..
-                        },
-                    ) => {
-                        write!(
-                            w,
-                            "{}{}{}",
-                            HYPERLINK_RESET,
-                            RESET,
-                            window[1].style.prefix()
-                        )?;
-                    }
-                    (
-                        Style {
-                            oscontrol: Some(_), ..
-                        },
-                        Style {
-                            oscontrol: None, ..
-                        },
-                    ) => {
-                        write!(w, "\x1B\\{}", window[1].style.prefix())?;
-                    }
-                    (_, _) => {
-                        write!(w, "{}{}", RESET, window[1].style.prefix())?;
-                    }
-                },
+                ExtraStyles(style) => write!(w, "{}", style.prefix())?,
+                Reset => write!(w, "{}{}", RESET, window[1].style.prefix())?,
                 Empty => { /* Do nothing! */ }
             }
 
-            w.write_str(&window[1].string)?;
+            window[1].write_inner(w)?;
         }
 
         // Write the final reset string after all of the AnsiStrings have been
@@ -414,17 +372,7 @@ where
         // have already been written by this point.
         if let Some(last) = self.0.last() {
             if !last.style.is_plain() {
-                match last.style.oscontrol {
-                    Some(OSControl::Hyperlink) => {
-                        write!(w, "{}{}", HYPERLINK_RESET, RESET)?;
-                    }
-                    Some(_) => {
-                        write!(w, "\x1B\\")?;
-                    }
-                    _ => {
-                        write!(w, "{}", RESET)?;
-                    }
-                }
+                write!(w, "{}", RESET)?;
             }
         }
 
@@ -506,23 +454,9 @@ mod tests {
 
     #[test]
     fn title() {
-        let title = Style::title().paint("Test Title");
+        let title = AnsiGenericString::title("Test Title");
         assert_eq!(title.clone().to_string(), "\x1B]2;Test Title\x1B\\");
         idempotent(title)
-    }
-
-    #[test]
-    fn icon() {
-        let icon = Style::icon().paint("/path/to/test.icn");
-        assert_eq!(icon.to_string(), "\x1B]I;/path/to/test.icn\x1B\\");
-        idempotent(icon)
-    }
-
-    #[test]
-    fn cwd() {
-        let cwd = Style::cwd().paint("/path/to/test/");
-        assert_eq!(cwd.to_string(), "\x1B]7;/path/to/test/\x1B\\");
-        idempotent(cwd)
     }
 
     #[test]

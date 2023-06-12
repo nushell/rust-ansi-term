@@ -21,12 +21,6 @@ pub struct Style {
     /// The style's background color, if it has one.
     pub background: Option<Color>,
 
-    // The style's os control type, if it has one.
-    // Used by corresponding public API functions in
-    // AnsiGenericString. This allows us to keep the
-    // prefix and suffix bits in the Style definition.
-    pub(crate) oscontrol: Option<OSControl>,
-
     /// Whether this style is bold.
     pub is_bold: bool,
 
@@ -256,32 +250,6 @@ impl Style {
         }
     }
 
-    pub(crate) fn hyperlink(&mut self) -> &mut Style {
-        self.oscontrol = Some(OSControl::Hyperlink);
-        self
-    }
-
-    pub(crate) fn title() -> Style {
-        Self {
-            oscontrol: Some(OSControl::Title),
-            ..Default::default()
-        }
-    }
-
-    pub(crate) fn icon() -> Style {
-        Self {
-            oscontrol: Some(OSControl::Icon),
-            ..Default::default()
-        }
-    }
-
-    pub(crate) fn cwd() -> Style {
-        Self {
-            oscontrol: Some(OSControl::Cwd),
-            ..Default::default()
-        }
-    }
-
     /// Return true if this `Style` has no actual styles, and can be written
     /// without any control characters.
     ///
@@ -295,21 +263,6 @@ impl Style {
     /// ```
     pub fn is_plain(self) -> bool {
         self == Style::default()
-    }
-
-    #[inline]
-    pub(crate) fn has_sgr(self) -> bool {
-        self.foreground.is_some()
-            || self.background.is_some()
-            || self.is_bold
-            || self.is_dimmed
-            || self.is_italic
-            || self.is_underline
-            || self.is_blink
-            || self.is_reverse
-            || self.is_hidden
-            || self.is_strikethrough
-            || self.with_reset
     }
 }
 
@@ -328,7 +281,6 @@ impl Default for Style {
         Style {
             foreground: None,
             background: None,
-            oscontrol: None,
             is_bold: false,
             is_dimmed: false,
             is_italic: false,
@@ -666,21 +618,6 @@ impl From<Color> for Style {
     }
 }
 
-#[non_exhaustive]
-#[derive(Eq, PartialEq, Clone, Copy)]
-#[cfg_attr(
-    feature = "derive_serde_style",
-    derive(serde::Deserialize, serde::Serialize)
-)]
-pub(crate) enum OSControl {
-    Hyperlink,
-    Title,
-    Icon,
-    Cwd,
-    //ScrollMarkerPromptBegin, // \e[?7711l
-    //ScrollMarkerPromptEnd, // \e[?7711h
-}
-
 #[cfg(test)]
 #[cfg(feature = "derive_serde_style")]
 mod serde_json_tests {
@@ -722,6 +659,6 @@ mod serde_json_tests {
     fn style_serialization() {
         let style = Style::default();
 
-        assert_eq!(serde_json::to_string(&style).unwrap(), "{\"foreground\":null,\"background\":null,\"oscontrol\":null,\"is_bold\":false,\"is_dimmed\":false,\"is_italic\":false,\"is_underline\":false,\"is_blink\":false,\"is_reverse\":false,\"is_hidden\":false,\"is_strikethrough\":false,\"with_reset\":false}".to_string());
+        assert_eq!(serde_json::to_string(&style).unwrap(), "{\"foreground\":null,\"background\":null,\"is_bold\":false,\"is_dimmed\":false,\"is_italic\":false,\"is_underline\":false,\"is_blink\":false,\"is_reverse\":false,\"is_hidden\":false,\"is_strikethrough\":false,\"with_reset\":false}".to_string());
     }
 }
