@@ -182,17 +182,17 @@ where
     /// ```
     /// use nu_ansi_term::Color::Red;
     ///
-    /// let mut link_string = Red.paint("a red string");
-    /// link_string.hyperlink("https://www.example.com");
+    /// let link_string = Red.paint("a red string").hyperlink("https://www.example.com");
     /// println!("{}", link_string);
     /// ```
     /// Should show a red-painted string which, on terminals
     /// that support it, is a clickable hyperlink.
-    pub fn hyperlink<I>(&mut self, url: I)
+    pub fn hyperlink<I>(mut self, url: I) -> Self
     where
         I: Into<Cow<'a, S>>,
     {
         self.oscontrol = Some(OSControl::Link { url: url.into() });
+        self
     }
 
     /// Get any URL associated with the string
@@ -461,8 +461,9 @@ mod tests {
 
     #[test]
     fn hyperlink() {
-        let mut styled = Red.paint("Link to example.com.");
-        styled.hyperlink("https://example.com");
+        let styled = Red
+            .paint("Link to example.com.")
+            .hyperlink("https://example.com");
         assert_eq!(
             styled.to_string(),
             "\x1B[31m\x1B]8;;https://example.com\x1B\\Link to example.com.\x1B]8;;\x1B\\\x1B[0m"
@@ -472,9 +473,11 @@ mod tests {
     #[test]
     fn hyperlinks() {
         let before = Green.paint("Before link. ");
-        let mut link = Blue.underline().paint("Link to example.com.");
+        let link = Blue
+            .underline()
+            .paint("Link to example.com.")
+            .hyperlink("https://example.com");
         let after = Green.paint(" After link.");
-        link.hyperlink("https://example.com");
 
         // Assemble with link by itself
         let joined = AnsiStrings(&[link.clone()]).to_string();
