@@ -45,8 +45,8 @@ pub struct Style {
     /// Whether this style is struckthrough.
     pub is_strikethrough: bool,
 
-    /// Wether this style starts with reset code
-    pub with_reset: bool,
+    /// Wether this style is always displayed starting with a reset code to clear any remaining style artifacts
+    pub prefix_with_reset: bool,
 }
 
 impl Style {
@@ -64,7 +64,7 @@ impl Style {
         Style::default()
     }
 
-    /// Returns a `Style` with the reset_before_style property set.
+    /// Returns a [`Style`] with the `Style.prefix_with_reset` property set.
     ///
     /// # Examples
     ///
@@ -76,7 +76,7 @@ impl Style {
     /// ```
     pub const fn reset_before_style(&self) -> Style {
         Style {
-            with_reset: true,
+            prefix_with_reset: true,
             ..*self
         }
     }
@@ -289,7 +289,7 @@ impl Default for Style {
             is_reverse: false,
             is_hidden: false,
             is_strikethrough: false,
-            with_reset: false,
+            prefix_with_reset: false,
         }
     }
 }
@@ -577,7 +577,7 @@ impl Color {
     pub fn reset_before_style(self) -> Style {
         Style {
             foreground: Some(self),
-            with_reset: true,
+            prefix_with_reset: true,
             ..Style::default()
         }
     }
@@ -659,6 +659,6 @@ mod serde_json_tests {
     fn style_serialization() {
         let style = Style::default();
 
-        assert_eq!(serde_json::to_string(&style).unwrap(), "{\"foreground\":null,\"background\":null,\"is_bold\":false,\"is_dimmed\":false,\"is_italic\":false,\"is_underline\":false,\"is_blink\":false,\"is_reverse\":false,\"is_hidden\":false,\"is_strikethrough\":false,\"with_reset\":false}".to_string());
+        assert_eq!(serde_json::to_string(&style).unwrap(), "{\"foreground\":null,\"background\":null,\"is_bold\":false,\"is_dimmed\":false,\"is_italic\":false,\"is_underline\":false,\"is_blink\":false,\"is_reverse\":false,\"is_hidden\":false,\"is_strikethrough\":false,\"prefix_with_reset\":false}".to_string());
     }
 }

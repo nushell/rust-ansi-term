@@ -22,7 +22,7 @@ fn manual_instance_style() {
         is_reverse: false,
         is_hidden: false,
         is_strikethrough: false,
-        with_reset: false,
+        prefix_with_reset: false,
     };
     assert_eq!(Style::default(), s);
 }

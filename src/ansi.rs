@@ -14,7 +14,7 @@ impl Style {
         }
 
         // Prefix everything with reset characters if needed
-        if self.with_reset {
+        if self.prefix_with_reset {
             write!(f, "\x1B[0m")?
         }
 
