@@ -1,12 +1,12 @@
 #![allow(missing_docs)]
 use crate::style::{Color, Style};
-use crate::write::AnyWrite;
+use crate::write::{AnyWrite, WriteResult};
 use crate::{write_any_fmt, write_any_str};
 use std::fmt;
 
 impl Style {
     /// Write any bytes that go *before* a piece of text to the given writer.
-    fn write_prefix<W: AnyWrite + ?Sized>(&self, f: &mut W) -> Result<(), W::Error>
+    fn write_prefix<W: AnyWrite + ?Sized>(&self, f: &mut W) -> WriteResult<W::Error>
     where
         str: AsRef<W::Buf>,
     {
@@ -90,7 +90,7 @@ impl Style {
     }
 
     /// Write any bytes that go *after* a piece of text to the given writer.
-    fn write_suffix<W: AnyWrite + ?Sized>(&self, f: &mut W) -> Result<(), W::Error> {
+    fn write_suffix<W: AnyWrite + ?Sized>(&self, f: &mut W) -> WriteResult<W::Error> {
         if self.is_plain() {
             Ok(())
         } else {
@@ -103,7 +103,7 @@ impl Style {
 pub static RESET: &str = "\x1B[0m";
 
 impl Color {
-    fn write_foreground_code<W: AnyWrite + ?Sized>(&self, f: &mut W) -> Result<(), W::Error>
+    fn write_foreground_code<W: AnyWrite + ?Sized>(&self, f: &mut W) -> WriteResult<W::Error>
     where
         str: AsRef<W::Buf>,
     {
@@ -132,7 +132,7 @@ impl Color {
         }
     }
 
-    fn write_background_code<W: AnyWrite + ?Sized>(&self, f: &mut W) -> Result<(), W::Error>
+    fn write_background_code<W: AnyWrite + ?Sized>(&self, f: &mut W) -> WriteResult<W::Error>
     where
         str: AsRef<W::Buf>,
     {

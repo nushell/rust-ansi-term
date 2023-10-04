@@ -1,7 +1,7 @@
 use crate::ansi::RESET;
 use crate::difference::Difference;
 use crate::style::{Color, Style};
-use crate::write::{AnyWrite, IntoWriteable, Writeable};
+use crate::write::{AnyWrite, IntoWriteable, WriteResult, Writeable};
 use crate::{write_any_content, write_any_fmt, write_any_str};
 use std::borrow::Cow;
 use std::fmt;
@@ -336,7 +336,7 @@ where
     str: AsRef<S>,
 {
     // write the part within the styling prefix and suffix
-    fn write_inner<W: AnyWrite<Buf = S> + ?Sized>(&self, w: &mut W) -> Result<(), W::Error> {
+    fn write_inner<W: AnyWrite<Buf = S> + ?Sized>(&self, w: &mut W) -> WriteResult<W::Error> {
         match &self.oscontrol {
             Some(OSControl::Link { url: u, .. }) => {
                 write_any_str!(w, "\x1B]8;;")?;
@@ -354,7 +354,7 @@ where
         }
     }
 
-    fn write_to_any<W: AnyWrite<Buf = S> + ?Sized>(&self, w: &mut W) -> Result<(), W::Error> {
+    fn write_to_any<W: AnyWrite<Buf = S> + ?Sized>(&self, w: &mut W) -> WriteResult<W::Error> {
         write_any_fmt!(w, "{}", self.style.prefix())?;
         self.write_inner(w)?;
         write_any_fmt!(w, "{}", self.style.suffix())
@@ -390,7 +390,7 @@ where
     &'a S: AsRef<[u8]>,
     str: AsRef<S>,
 {
-    fn write_to_any<W: AnyWrite<Buf = S> + ?Sized>(&self, w: &mut W) -> Result<(), W::Error> {
+    fn write_to_any<W: AnyWrite<Buf = S> + ?Sized>(&self, w: &mut W) -> WriteResult<W::Error> {
         use self::Difference::*;
 
         let first = match self.0.first() {
