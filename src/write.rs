@@ -39,46 +39,60 @@ impl<'a> AnyWrite for dyn io::Write + 'a {
     }
 }
 
-pub trait IntoWriteable<C> {
-    fn into_content(self) -> C;
-}
-
-pub trait Writeable<'a, S: 'a + ToOwned + ?Sized> {
+pub trait Content<'a, S: 'a + ToOwned + ?Sized> {
     fn write_to<W: AnyWrite<Buf = S> + ?Sized>(&self, w: &mut W) -> WriteResult<W::Error>;
 }
 
-impl<'a, S: 'a + ToOwned + ?Sized> Writeable<'a, S> for &'a S {
+impl<'a, S: 'a + ToOwned + ?Sized> Content<'a, S> for str
+where
+    str: AsRef<S>,
+{
     fn write_to<W: AnyWrite<Buf = S> + ?Sized>(&self, w: &mut W) -> WriteResult<W::Error> {
+        w.write_any_str(self.as_ref())
+    }
+}
+
+impl<'a> Content<'a, [u8]> for [u8] {
+    fn write_to<W: AnyWrite<Buf = [u8]> + ?Sized>(&self, w: &mut W) -> WriteResult<W::Error> {
         w.write_any_str(self)
     }
 }
 
-impl<'a, S: 'a + ToOwned + ?Sized> Writeable<'a, S> for Cow<'a, S> {
+impl<'a, S: 'a + ToOwned + ?Sized, C: ?Sized + Content<'a, S>> Content<'a, S> for &'a C {
     fn write_to<W: AnyWrite<Buf = S> + ?Sized>(&self, w: &mut W) -> WriteResult<W::Error> {
-        w.write_any_str(self)
+        <C as Content<'a, S>>::write_to(self, w)
     }
 }
 
-impl<'a, S: 'a + ToOwned + ?Sized> Writeable<'a, S> for fmt::Arguments<'a> {
+impl<'a, S: 'a + ToOwned + ?Sized, C: ?Sized + Content<'a, S> + ToOwned> Content<'a, S>
+    for Cow<'a, C>
+{
+    fn write_to<W: AnyWrite<Buf = S> + ?Sized>(&self, w: &mut W) -> WriteResult<W::Error> {
+        <C as Content<'a, S>>::write_to(self.as_ref(), w)
+    }
+}
+
+impl<'a, S: 'a + ToOwned + ?Sized> Content<'a, S> for fmt::Arguments<'a> {
     fn write_to<W: AnyWrite<Buf = S> + ?Sized>(&self, w: &mut W) -> WriteResult<W::Error> {
         w.write_any_fmt(*self)
     }
 }
 
-impl<'a, S: 'a + ToOwned + ?Sized> IntoWriteable<Cow<'a, S>> for &'a S {
-    fn into_content(self) -> Cow<'a, S> {
-        Cow::Borrowed(self)
+impl<'a, S: 'a + ToOwned + ?Sized> Content<'a, S> for String
+where
+    str: Content<'a, S>,
+{
+    fn write_to<W: AnyWrite<Buf = S> + ?Sized>(&self, w: &mut W) -> WriteResult<W::Error> {
+        <str as Content<'a, S>>::write_to(self.as_str(), w)
     }
 }
 
-impl<'a, S: 'a + ToOwned + ?Sized> IntoWriteable<Cow<'a, S>> for Cow<'a, S> {
-    fn into_content(self) -> Cow<'a, S> {
-        self.clone()
-    }
+pub trait IntoContent<'a, S: 'a + ToOwned + ?Sized, C: Content<'a, S>> {
+    fn into_content(self) -> C;
 }
 
-impl<'a> IntoWriteable<fmt::Arguments<'a>> for fmt::Arguments<'a> {
-    fn into_content(self) -> Self {
+impl<'a, S: 'a + ToOwned + ?Sized, C: Content<'a, S>> IntoContent<'a, S, C> for C {
+    fn into_content(self) -> C {
         self
     }
 }
@@ -98,7 +112,7 @@ macro_rules! write_any_str {
 }
 
 #[macro_export]
-macro_rules! write_any_content {
+macro_rules! write_any {
     ($w:expr, $($args:tt)*) => {
         $($args)*.write_to($w)
     };

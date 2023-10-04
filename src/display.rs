@@ -1,8 +1,8 @@
 use crate::ansi::RESET;
 use crate::difference::Difference;
 use crate::style::{Color, Style};
-use crate::write::{AnyWrite, IntoWriteable, WriteResult, Writeable};
-use crate::{write_any_content, write_any_fmt, write_any_str};
+use crate::write::{AnyWrite, Content, IntoContent, WriteResult};
+use crate::{write_any, write_any_fmt, write_any_str};
 use std::borrow::Cow;
 use std::fmt;
 use std::io;
@@ -12,7 +12,7 @@ use std::marker::PhantomData;
 enum OSControl<'a, S: 'a + ToOwned + ?Sized, C>
 where
     <S as ToOwned>::Owned: fmt::Debug,
-    C: Writeable<'a, S>,
+    C: Content<'a, S>,
 {
     Title,
     Link { url: C, _marker: PhantomData<&'a S> },
@@ -21,7 +21,7 @@ where
 impl<'a, S: ToOwned + ?Sized, C> Clone for OSControl<'a, S, C>
 where
     <S as ToOwned>::Owned: fmt::Debug,
-    C: Writeable<'a, S> + Clone,
+    C: Content<'a, S> + Clone,
 {
     fn clone(&self) -> Self {
         match self {
@@ -41,7 +41,7 @@ where
 pub struct AnsiGenericString<'a, S: ToOwned + ?Sized, C>
 where
     <S as ToOwned>::Owned: fmt::Debug,
-    C: Writeable<'a, S>,
+    C: Content<'a, S>,
 {
     pub(crate) style: Style,
     pub(crate) content: C,
@@ -51,11 +51,12 @@ where
 impl<'a, S: ToOwned + ?Sized> From<&'a S> for AnsiGenericString<'a, S, Cow<'a, S>>
 where
     <S as ToOwned>::Owned: fmt::Debug,
+    Cow<'a, S>: Content<'a, S>,
 {
     fn from(s: &'a S) -> Self {
         AnsiGenericString {
             style: Style::default(),
-            content: s.into_content(),
+            content: Cow::Borrowed(s),
             oscontrol: None,
         }
     }
@@ -89,7 +90,7 @@ where
 impl<'a, S: ToOwned + ?Sized, C> Clone for AnsiGenericString<'a, S, C>
 where
     <S as ToOwned>::Owned: fmt::Debug,
-    C: Writeable<'a, S> + Clone,
+    C: Content<'a, S> + Clone,
 {
     fn clone(&self) -> AnsiGenericString<'a, S, C> {
         AnsiGenericString {
@@ -151,7 +152,7 @@ pub type AnsiByteString<'a, C> = AnsiGenericString<'a, [u8], C>;
 impl<'a, S: 'a + ToOwned + ?Sized, C> AnsiGenericString<'a, S, C>
 where
     <S as ToOwned>::Owned: fmt::Debug,
-    C: Writeable<'a, S>,
+    C: Content<'a, S>,
 {
     /// Directly access the style
     pub const fn style_ref(&self) -> &Style {
@@ -163,8 +164,11 @@ where
         &mut self.style
     }
 
-    pub fn content_ref(&self) -> &C {
-        &self.content
+    pub fn content_ref<T: ?Sized>(&self) -> &T
+    where
+        C: AsRef<T>,
+    {
+        self.content.as_ref()
     }
 
     // Instances that imply wrapping in OSC sequences
@@ -184,7 +188,7 @@ where
     /// Should produce an empty line but set the terminal title.
     pub fn title<I>(s: I) -> Self
     where
-        I: IntoWriteable<C>,
+        I: IntoContent<'a, S, C>,
     {
         Self {
             style: Style::default(),
@@ -211,7 +215,7 @@ where
     /// that support it, is a clickable hyperlink.
     pub fn hyperlink<I>(mut self, url: I) -> Self
     where
-        I: IntoWriteable<C>,
+        I: IntoContent<'a, S, C>,
     {
         self.oscontrol = Some(OSControl::Link {
             url: url.into_content(),
@@ -238,7 +242,7 @@ pub struct AnsiGenericStrings<'a, S: ToOwned + ?Sized, C>(
 )
 where
     <S as ToOwned>::Owned: fmt::Debug,
-    C: Writeable<'a, S>,
+    C: Content<'a, S>,
     S: PartialEq;
 
 /// A set of `AnsiString`s collected together, in order to be written with a
@@ -249,7 +253,7 @@ pub type AnsiStrings<'a, C> = AnsiGenericStrings<'a, str, C>;
 #[allow(non_snake_case)]
 pub fn AnsiStrings<'a, C>(arg: &'a [AnsiString<'a, C>]) -> AnsiStrings<'a, C>
 where
-    C: Writeable<'a, str>,
+    C: Content<'a, str>,
 {
     AnsiGenericStrings(arg, PhantomData)
 }
@@ -262,7 +266,7 @@ pub type AnsiByteStrings<'a, C> = AnsiGenericStrings<'a, [u8], C>;
 #[allow(non_snake_case)]
 pub fn AnsiByteStrings<'a, C>(arg: &'a [AnsiByteString<'a, C>]) -> AnsiByteStrings<'a, C>
 where
-    C: Writeable<'a, [u8]>,
+    C: Content<'a, [u8]>,
 {
     AnsiGenericStrings(arg, PhantomData)
 }
@@ -274,9 +278,9 @@ impl Style {
     #[must_use]
     pub fn paint<'a, I, S: ToOwned + ?Sized, C>(self, input: I) -> AnsiGenericString<'a, S, C>
     where
-        I: IntoWriteable<C>,
+        I: IntoContent<'a, S, C>,
         <S as ToOwned>::Owned: fmt::Debug,
-        C: Writeable<'a, S>,
+        C: Content<'a, S>,
     {
         AnsiGenericString {
             style: self,
@@ -298,9 +302,9 @@ impl Color {
     #[must_use]
     pub fn paint<'a, I, S: ToOwned + ?Sized, C>(self, input: I) -> AnsiGenericString<'a, S, C>
     where
-        I: IntoWriteable<C>,
+        I: IntoContent<'a, S, C>,
         <S as ToOwned>::Owned: fmt::Debug,
-        C: Writeable<'a, S>,
+        C: Content<'a, S>,
     {
         AnsiGenericString {
             content: input.into_content(),
@@ -312,14 +316,14 @@ impl Color {
 
 // ---- writers for individual ANSI strings ----
 
-impl<'a, C: Writeable<'a, str>> fmt::Display for AnsiString<'a, C> {
+impl<'a, C: Content<'a, str>> fmt::Display for AnsiString<'a, C> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let w: &mut dyn fmt::Write = f;
         self.write_to_any(w)
     }
 }
 
-impl<'a, C: Writeable<'a, [u8]>> AnsiByteString<'a, C> {
+impl<'a, C: Content<'a, [u8]>> AnsiByteString<'a, C> {
     /// Write an `AnsiByteString` to an `io::Write`.  This writes the escape
     /// sequences for the associated `Style` around the bytes.
     pub fn write_to<W: io::Write>(&self, w: &mut W) -> io::Result<()> {
@@ -331,7 +335,7 @@ impl<'a, C: Writeable<'a, [u8]>> AnsiByteString<'a, C> {
 impl<'a, S: 'a + ToOwned + ?Sized, C> AnsiGenericString<'a, S, C>
 where
     <S as ToOwned>::Owned: fmt::Debug,
-    C: Writeable<'a, S>,
+    C: Content<'a, S>,
     &'a S: AsRef<[u8]>,
     str: AsRef<S>,
 {
@@ -340,17 +344,17 @@ where
         match &self.oscontrol {
             Some(OSControl::Link { url: u, .. }) => {
                 write_any_str!(w, "\x1B]8;;")?;
-                write_any_content!(w, u)?;
+                write_any!(w, u)?;
                 write_any_str!(w, "\x1B\x5C")?;
-                write_any_content!(w, self.content)?;
+                write_any!(w, self.content)?;
                 write_any_str!(w, "\x1B]8;;\x1B\x5C")
             }
             Some(OSControl::Title) => {
                 write_any_str!(w, "\x1B]2;")?;
-                write_any_content!(w, self.content)?;
+                write_any!(w, self.content)?;
                 write_any_str!(w, "\x1B\x5C")
             }
-            None => write_any_content!(w, self.content),
+            None => write_any!(w, self.content),
         }
     }
 
@@ -363,7 +367,7 @@ where
 
 // ---- writers for combined ANSI strings ----
 
-impl<'a, C: Writeable<'a, str>> fmt::Display for AnsiStrings<'a, C> {
+impl<'a, C: Content<'a, str>> fmt::Display for AnsiStrings<'a, C> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let f: &mut dyn fmt::Write = f;
         self.write_to_any(f)
@@ -372,7 +376,7 @@ impl<'a, C: Writeable<'a, str>> fmt::Display for AnsiStrings<'a, C> {
 
 impl<'a, C> AnsiByteStrings<'a, C>
 where
-    C: Writeable<'a, [u8]>,
+    C: Content<'a, [u8]>,
 {
     /// Write `AnsiByteStrings` to an `io::Write`.  This writes the minimal
     /// escape sequences for the associated `Style`s around each set of
@@ -386,7 +390,7 @@ where
 impl<'a, S: 'a + ToOwned + ?Sized + PartialEq, C> AnsiGenericStrings<'a, S, C>
 where
     <S as ToOwned>::Owned: fmt::Debug,
-    C: Writeable<'a, S>,
+    C: Content<'a, S>,
     &'a S: AsRef<[u8]>,
     str: AsRef<S>,
 {
@@ -448,10 +452,9 @@ mod tests {
         let before = Style::default().paint("Before is Plain. ");
         let after_g = Green.paint(" After is Green.");
         let after = Style::default().paint(" After is Plain.");
-        let unstyled_s = unstyled.clone().to_string();
 
         // check that RESET precedes unstyled
-        let joined = AnsiStrings(&[before_g.clone(), unstyled.clone()]).to_string();
+        let joined = AnsiStrings(&[before_g, unstyled]).to_string();
         assert!(joined.starts_with("\x1B[32mBefore is Green. \x1B[0m"));
         assert!(
             joined.ends_with(unstyled_s.as_str()),
@@ -501,7 +504,7 @@ mod tests {
     #[test]
     fn title() {
         let title = AnsiGenericString::title("Test Title");
-        assert_eq!(title.clone().to_string(), "\x1B]2;Test Title\x1B\\");
+        assert_eq!(title.content_ref(), "\x1B]2;Test Title\x1B\\");
         idempotent(title)
     }
 
