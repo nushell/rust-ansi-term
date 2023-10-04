@@ -38,10 +38,42 @@ impl<'a> AnyWrite for dyn io::Write + 'a {
 }
 
 pub trait IntoContent<C> {
-    fn into_content(&self) -> C;
+    fn into_content(self) -> C;
 }
 
-impl<'a, S: 'a + ToOwned + ?Sized> IntoContent<Cow<'a, S>> for &'a S {}
+pub trait Content<'a, S: 'a + ToOwned + ?Sized> {
+    fn write_to<W: AnyWrite<Buf = S> + ?Sized>(&self, w: &mut W) -> Result<(), W::Error>;
+}
+
+impl<'a, S: 'a + ToOwned + ?Sized> Content<'a, S> for Cow<'a, S> {
+    fn write_to<W: AnyWrite<Buf = S> + ?Sized>(&self, w: &mut W) -> Result<(), W::Error> {
+        w.write_any_str(self)
+    }
+}
+
+impl<'a, S: 'a + ToOwned + ?Sized> Content<'a, S> for fmt::Arguments<'a> {
+    fn write_to<W: AnyWrite<Buf = S> + ?Sized>(&self, w: &mut W) -> Result<(), W::Error> {
+        w.write_any_fmt(*self)
+    }
+}
+
+impl<'a, S: 'a + ToOwned + ?Sized> IntoContent<Cow<'a, S>> for &'a S {
+    fn into_content(self) -> Cow<'a, S> {
+        Cow::Borrowed(self)
+    }
+}
+
+impl<'a, S: 'a + ToOwned + ?Sized> IntoContent<Cow<'a, S>> for Cow<'a, S> {
+    fn into_content(self) -> Cow<'a, S> {
+        self.clone()
+    }
+}
+
+impl<'a> IntoContent<fmt::Arguments<'a>> for fmt::Arguments<'a> {
+    fn into_content(self) -> Self {
+        self
+    }
+}
 
 #[macro_export]
 macro_rules! write_any_fmt {
@@ -54,5 +86,12 @@ macro_rules! write_any_fmt {
 macro_rules! write_any_str {
     ($w:expr, $($args:tt)*) => {
         $w.write_any_str($($args)*.as_ref())
+    };
+}
+
+#[macro_export]
+macro_rules! write_any_content {
+    ($w:expr, $($args:tt)*) => {
+        $($args)*.write_to($w)
     };
 }

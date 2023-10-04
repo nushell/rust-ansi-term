@@ -254,9 +254,6 @@ mod write;
 mod windows;
 pub use crate::windows::*;
 
-mod util;
-pub use util::*;
-
 mod debug;
 
 pub mod gradient;
