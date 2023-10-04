@@ -2,6 +2,7 @@ use crate::ansi::RESET;
 use crate::difference::Difference;
 use crate::style::{Color, Style};
 use crate::write::AnyWrite;
+use crate::{write_any_fmt, write_any_str};
 use std::borrow::Cow;
 use std::fmt;
 use std::io;
@@ -295,30 +296,31 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericString<'a, S>
 where
     <S as ToOwned>::Owned: fmt::Debug,
     &'a S: AsRef<[u8]>,
+    str: AsRef<S>,
 {
     // write the part within the styling prefix and suffix
-    fn write_inner<W: AnyWrite<Wstr = S> + ?Sized>(&self, w: &mut W) -> Result<(), W::Error> {
+    fn write_inner<W: AnyWrite<Buf = S> + ?Sized>(&self, w: &mut W) -> Result<(), W::Error> {
         match &self.oscontrol {
             Some(OSControl::Link { url: u }) => {
-                write!(w, "\x1B]8;;")?;
-                w.write_str(u.as_ref())?;
-                write!(w, "\x1B\x5C")?;
-                w.write_str(self.string.as_ref())?;
-                write!(w, "\x1B]8;;\x1B\x5C")
+                write_any_str!(w, "\x1B]8;;")?;
+                write_any_str!(w, u)?;
+                write_any_str!(w, "\x1B\x5C")?;
+                w.write_any_str(self.string.as_ref())?;
+                write_any_str!(w, "\x1B]8;;\x1B\x5C")
             }
             Some(OSControl::Title) => {
-                write!(w, "\x1B]2;")?;
-                w.write_str(self.string.as_ref())?;
-                write!(w, "\x1B\x5C")
+                write_any_str!(w, "\x1B]2;")?;
+                w.write_any_str(self.string.as_ref())?;
+                write_any_str!(w, "\x1B\x5C")
             }
-            None => w.write_str(self.string.as_ref()),
+            None => w.write_any_str(self.string.as_ref()),
         }
     }
 
-    fn write_to_any<W: AnyWrite<Wstr = S> + ?Sized>(&self, w: &mut W) -> Result<(), W::Error> {
-        write!(w, "{}", self.style.prefix())?;
+    fn write_to_any<W: AnyWrite<Buf = S> + ?Sized>(&self, w: &mut W) -> Result<(), W::Error> {
+        write_any_fmt!(w, "{}", self.style.prefix())?;
         self.write_inner(w)?;
-        write!(w, "{}", self.style.suffix())
+        write_any_fmt!(w, "{}", self.style.suffix())
     }
 }
 
@@ -345,8 +347,9 @@ impl<'a, S: 'a + ToOwned + ?Sized + PartialEq> AnsiGenericStrings<'a, S>
 where
     <S as ToOwned>::Owned: fmt::Debug,
     &'a S: AsRef<[u8]>,
+    str: AsRef<S>,
 {
-    fn write_to_any<W: AnyWrite<Wstr = S> + ?Sized>(&self, w: &mut W) -> Result<(), W::Error> {
+    fn write_to_any<W: AnyWrite<Buf = S> + ?Sized>(&self, w: &mut W) -> Result<(), W::Error> {
         use self::Difference::*;
 
         let first = match self.0.first() {
@@ -354,13 +357,13 @@ where
             Some(f) => f,
         };
 
-        write!(w, "{}", first.style.prefix())?;
+        write_any_fmt!(w, "{}", first.style.prefix())?;
         first.write_inner(w)?;
 
         for window in self.0.windows(2) {
             match Difference::between(&window[0].style, &window[1].style) {
-                ExtraStyles(style) => write!(w, "{}", style.prefix())?,
-                Reset => write!(w, "{}{}", RESET, window[1].style.prefix())?,
+                ExtraStyles(style) => write_any_fmt!(w, "{}", style.prefix())?,
+                Reset => write_any_fmt!(w, "{}{}", RESET, window[1].style.prefix())?,
                 Empty => { /* Do nothing! */ }
             }
 
@@ -372,7 +375,7 @@ where
         // have already been written by this point.
         if let Some(last) = self.0.last() {
             if !last.style.is_plain() {
-                write!(w, "{}", RESET)?;
+                write_any_fmt!(w, "{}", RESET)?;
             }
         }
 

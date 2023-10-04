@@ -1,11 +1,15 @@
 #![allow(missing_docs)]
 use crate::style::{Color, Style};
 use crate::write::AnyWrite;
+use crate::{write_any_fmt, write_any_str};
 use std::fmt;
 
 impl Style {
     /// Write any bytes that go *before* a piece of text to the given writer.
-    fn write_prefix<W: AnyWrite + ?Sized>(&self, f: &mut W) -> Result<(), W::Error> {
+    fn write_prefix<W: AnyWrite + ?Sized>(&self, f: &mut W) -> Result<(), W::Error>
+    where
+        str: AsRef<W::Buf>,
+    {
         // If there are actually no styles here, then don’t write *any* codes
         // as the prefix. An empty ANSI code may not affect the terminal
         // output at all, but a user may just want a code-free string.
@@ -15,23 +19,23 @@ impl Style {
 
         // Prefix everything with reset characters if needed
         if self.prefix_with_reset {
-            write!(f, "\x1B[0m")?
+            write_any_str!(f, "\x1B[0m")?
         }
 
         // Write the codes’ prefix, then write numbers, separated by
         // semicolons, for each text style we want to apply.
-        write!(f, "\x1B[")?;
+        write_any_str!(f, "\x1B[")?;
         let mut written_anything = false;
 
         {
             let mut write_char = |c| {
                 if written_anything {
-                    write!(f, ";")?;
+                    write_any_str!(f, ";")?;
                 }
                 written_anything = true;
                 #[cfg(feature = "gnu_legacy")]
-                write!(f, "0")?;
-                write!(f, "{}", c)?;
+                f.write_str("0".as_ref())?;
+                write_any_fmt!(f, "{}", c)?;
                 Ok(())
             };
 
@@ -66,7 +70,7 @@ impl Style {
         // (see `write_background_code` and `write_foreground_code`)
         if let Some(bg) = self.background {
             if written_anything {
-                write!(f, ";")?;
+                write_any_str!(f, ";")?;
             }
             written_anything = true;
             bg.write_background_code(f)?;
@@ -74,13 +78,13 @@ impl Style {
 
         if let Some(fg) = self.foreground {
             if written_anything {
-                write!(f, ";")?;
+                write_any_str!(f, ";")?;
             }
             fg.write_foreground_code(f)?;
         }
 
         // All the codes end with an `m`, because reasons.
-        write!(f, "m")?;
+        write_any_str!(f, "m")?;
 
         Ok(())
     }
@@ -90,7 +94,7 @@ impl Style {
         if self.is_plain() {
             Ok(())
         } else {
-            write!(f, "{}", RESET)
+            write_any_fmt!(f, "{}", RESET)
         }
     }
 }
@@ -99,55 +103,61 @@ impl Style {
 pub static RESET: &str = "\x1B[0m";
 
 impl Color {
-    fn write_foreground_code<W: AnyWrite + ?Sized>(&self, f: &mut W) -> Result<(), W::Error> {
+    fn write_foreground_code<W: AnyWrite + ?Sized>(&self, f: &mut W) -> Result<(), W::Error>
+    where
+        str: AsRef<W::Buf>,
+    {
         match self {
-            Color::Black => write!(f, "30"),
-            Color::Red => write!(f, "31"),
-            Color::Green => write!(f, "32"),
-            Color::Yellow => write!(f, "33"),
-            Color::Blue => write!(f, "34"),
-            Color::Purple => write!(f, "35"),
-            Color::Magenta => write!(f, "35"),
-            Color::Cyan => write!(f, "36"),
-            Color::White => write!(f, "37"),
-            Color::Fixed(num) => write!(f, "38;5;{}", num),
-            Color::Rgb(r, g, b) => write!(f, "38;2;{};{};{}", r, g, b),
-            Color::Default => write!(f, "39"),
-            Color::DarkGray => write!(f, "90"),
-            Color::LightRed => write!(f, "91"),
-            Color::LightGreen => write!(f, "92"),
-            Color::LightYellow => write!(f, "93"),
-            Color::LightBlue => write!(f, "94"),
-            Color::LightPurple => write!(f, "95"),
-            Color::LightMagenta => write!(f, "95"),
-            Color::LightCyan => write!(f, "96"),
-            Color::LightGray => write!(f, "97"),
+            Color::Black => write_any_str!(f, "30"),
+            Color::Red => write_any_str!(f, "31"),
+            Color::Green => write_any_str!(f, "32"),
+            Color::Yellow => write_any_str!(f, "33"),
+            Color::Blue => write_any_str!(f, "34"),
+            Color::Purple => write_any_str!(f, "35"),
+            Color::Magenta => write_any_str!(f, "35"),
+            Color::Cyan => write_any_str!(f, "36"),
+            Color::White => write_any_str!(f, "37"),
+            Color::Fixed(num) => write_any_fmt!(f, "38;5;{}", num),
+            Color::Rgb(r, g, b) => write_any_fmt!(f, "38;2;{};{};{}", r, g, b),
+            Color::Default => write_any_str!(f, "39"),
+            Color::DarkGray => write_any_str!(f, "90"),
+            Color::LightRed => write_any_str!(f, "91"),
+            Color::LightGreen => write_any_str!(f, "92"),
+            Color::LightYellow => write_any_str!(f, "93"),
+            Color::LightBlue => write_any_str!(f, "94"),
+            Color::LightPurple => write_any_str!(f, "95"),
+            Color::LightMagenta => write_any_str!(f, "95"),
+            Color::LightCyan => write_any_str!(f, "96"),
+            Color::LightGray => write_any_str!(f, "97"),
         }
     }
 
-    fn write_background_code<W: AnyWrite + ?Sized>(&self, f: &mut W) -> Result<(), W::Error> {
+    fn write_background_code<W: AnyWrite + ?Sized>(&self, f: &mut W) -> Result<(), W::Error>
+    where
+        str: AsRef<W::Buf>,
+    {
         match self {
-            Color::Black => write!(f, "40"),
-            Color::Red => write!(f, "41"),
-            Color::Green => write!(f, "42"),
-            Color::Yellow => write!(f, "43"),
-            Color::Blue => write!(f, "44"),
-            Color::Purple => write!(f, "45"),
-            Color::Magenta => write!(f, "45"),
-            Color::Cyan => write!(f, "46"),
-            Color::White => write!(f, "47"),
-            Color::Fixed(num) => write!(f, "48;5;{}", num),
-            Color::Rgb(r, g, b) => write!(f, "48;2;{};{};{}", r, g, b),
-            Color::Default => write!(f, "49"),
-            Color::DarkGray => write!(f, "100"),
-            Color::LightRed => write!(f, "101"),
-            Color::LightGreen => write!(f, "102"),
-            Color::LightYellow => write!(f, "103"),
-            Color::LightBlue => write!(f, "104"),
-            Color::LightPurple => write!(f, "105"),
-            Color::LightMagenta => write!(f, "105"),
-            Color::LightCyan => write!(f, "106"),
-            Color::LightGray => write!(f, "107"),
+            Color::Black => write_any_str!(f, "40"),
+            Color::Red => write_any_str!(f, "41"),
+            Color::Green => write_any_str!(f, "42"),
+            Color::Yellow => write_any_str!(f, "43"),
+            Color::Blue => write_any_str!(f, "44"),
+            Color::Purple => write_any_str!(f, "45"),
+            Color::Magenta => write_any_str!(f, "45"),
+            Color::Cyan => write_any_str!(f, "46"),
+            Color::White => write_any_str!(f, "47"),
+            Color::Fixed(num) => write_any_fmt!(f, "48;5;{}", num),
+            Color::Rgb(r, g, b) => write_any_fmt!(f, "48;2;{};{};{}", r, g, b),
+            Color::Default => write_any_str!(f, "49"),
+            Color::DarkGray => write_any_str!(f, "100"),
+            Color::LightRed => write_any_str!(f, "101"),
+            Color::LightGreen => write_any_str!(f, "102"),
+            Color::LightYellow => write_any_str!(f, "103"),
+            Color::LightBlue => write_any_str!(f, "104"),
+            Color::LightPurple => write_any_str!(f, "105"),
+            Color::LightMagenta => write_any_str!(f, "105"),
+            Color::LightCyan => write_any_str!(f, "106"),
+            Color::LightGray => write_any_str!(f, "107"),
         }
     }
 }
@@ -204,7 +214,7 @@ impl Style {
     ///            style.prefix().to_string());
     /// # }
     /// ```
-    ///     
+    ///
     /// # Examples with gnu_legacy feature enabled
     /// Styles like bold, underlined, etc. are two-digit now
     ///
