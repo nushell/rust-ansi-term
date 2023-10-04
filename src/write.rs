@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt;
 use std::io;
 
@@ -35,6 +36,12 @@ impl<'a> AnyWrite for dyn io::Write + 'a {
         io::Write::write_all(self, s)
     }
 }
+
+pub trait IntoContent<C> {
+    fn into_content(&self) -> C;
+}
+
+impl<'a, S: 'a + ToOwned + ?Sized> IntoContent<Cow<'a, S>> for &'a S {}
 
 #[macro_export]
 macro_rules! write_any_fmt {
