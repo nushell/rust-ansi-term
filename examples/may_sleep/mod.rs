@@ -15,9 +15,9 @@ pub fn parse_cmd_args() -> Option<u16> {
                     .unwrap_or(String::from("5000u16"))
                     .parse::<u16>()
                     .ok()
-                    .and_then(|parsed| {
+                    .map(|parsed| {
                         skip_next = true;
-                        Some(parsed)
+                        parsed
                     });
             }
             _ => {}
