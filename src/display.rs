@@ -1,6 +1,6 @@
 use crate::style::{Color, Style};
 use crate::write::{AnyWrite, Content, StrLike, WriteResult};
-use crate::{write_any_fmt, write_any_str};
+use crate::{write_any_fmt, write_any_str, coerce_fmt_write};
 use std::fmt;
 use std::io;
 
@@ -155,7 +155,7 @@ where
         &self.content
     }
 
-    pub fn oscontrol(&self) -> &OSControl<'a, S> {
+    pub fn oscontrol(&self) -> &Option<OSControl<'a, S>> {
         &self.oscontrol
     }
 
@@ -230,7 +230,7 @@ where
 {
     contents: Vec<Content<'a, S>>,
     styles: Vec<(usize, Style)>,
-    oscontrols: Vec<OSControl<'a, S>>,
+    oscontrols: Vec<Option<OSControl<'a, S>>>,
 }
 
 impl<'a, S: ToOwned + ?Sized> AnsiGenericStrings<'a, S>
@@ -248,39 +248,44 @@ where
     fn push(&mut self, s: AnsiGenericString<'a, S>) {
         // Content push should happen first, as push_styles depends on the new
         // length of the contents vector.
-        self.push_content(s.content());
-        self.push_style(s.style());
-        self.push_oscontrol(s.oscontrol());
+        self.push_content(s.content().clone());
+        self.push_style(*s.style());
+        self.push_oscontrol(s.oscontrol().clone());
     }
 
-    fn push_style(&self, style: &Style) {
-        if let Some((ix, style)) = self.styles.last() {
-            match  {
-
-            }
+    fn push_style(&self, next: Style) {
+        let update = if let Some((ix, style)) = self.styles.last() {
+            style.compute_update(next)
         } else {
-            self.styles.push((self.contents.len(), *style))
+            Some(next)
+        };
+
+        if let Some(update) = update {
+            self.styles.push((self.contents.len(), update))
         }
     }
 
-    fn push_oscontrol(&self, oscontrol: &OSControl<'_, S>) {
-        todo!()
+    #[inline]
+    fn push_oscontrol(&self, oscontrol: Option<OSControl<'_, S>>) {
+        self.oscontrols.push(oscontrol)
     }
 
-    fn push_content(&self, content: &Content<'_, S>) {
-        todo!()
+    #[inline]
+    fn push_content(&self, content: Content<'_, S>) {
+        self.contents.push(content);
     }
 }
 
-impl<'a, S: ToOwned + ?Sized> FromIterator<AnsiGenericString<'a, S>> for AnsiGenericStrings<'a, S>
+impl<'a, 'b, S: ToOwned + ?Sized> FromIterator<&'b AnsiGenericString<'a, S>> for AnsiGenericStrings<'a, S>
 where
     S: fmt::Debug,
 {
-    fn from_iter<Iterable: IntoIterator<Item = AnsiGenericString<'a, S>>>(iter: Iterable) -> Self {
-        let iter = iter.into_iter();
-        let mut ansi_strings = AnsiGenericStrings::empty(iter.by_ref().count());
-        for s in iter.into_iter() {
-            ansi_strings.push(s);
+    fn from_iter<Iterable: IntoIterator<Item = &'b AnsiGenericString<'a, S>>>(iter: Iterable) -> Self {
+        let mut iter = iter.into_iter();
+        let iter_count = iter.cloned().count();
+        let mut ansi_strings = AnsiGenericStrings::empty(iter_count);
+        for s in iter {
+            ansi_strings.push(s.clone());
         }
         ansi_strings
     }
@@ -351,8 +356,7 @@ impl Color {
 
 impl<'a> fmt::Display for AnsiString<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let w: &mut dyn fmt::Write = f;
-        self.write_to_any(w)
+        self.write_to_any(coerce_fmt_write!(f))
     }
 }
 

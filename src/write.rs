@@ -27,18 +27,18 @@ impl<'a> AnyWrite for dyn fmt::Write + 'a {
     }
 }
 
-impl<B: AsMut<str> + fmt::Write> AnyWrite for B {
-    type Buf = str;
-    type Error = fmt::Error;
+// impl<B: AsMut<str> + fmt::Write> AnyWrite for B {
+//     type Buf = str;
+//     type Error = fmt::Error;
 
-    fn write_any_fmt(&mut self, args: fmt::Arguments) -> WriteResult<Self::Error> {
-        fmt::Write::write_fmt(self, args)
-    }
+//     fn write_any_fmt(&mut self, args: fmt::Arguments) -> WriteResult<Self::Error> {
+//         fmt::Write::write_fmt(self, args)
+//     }
 
-    fn write_any_str(&mut self, s: &Self::Buf) -> WriteResult<Self::Error> {
-        fmt::Write::write_str(self, s)
-    }
-}
+//     fn write_any_str(&mut self, s: &Self::Buf) -> WriteResult<Self::Error> {
+//         fmt::Write::write_str(self, s)
+//     }
+// }
 
 impl<'a> AnyWrite for dyn io::Write + 'a {
     type Buf = [u8];
@@ -102,7 +102,12 @@ where
             Content::FmtArgs(x) => format!("{}", x),
             Content::StrLike(x) => {
                 let mut s = String::new();
-                x.as_ref().write_str_to(&mut s).unwrap();
+                x.as_ref()
+                    .write_str_to({
+                        let s: &mut dyn fmt::Write = &mut s;
+                        s
+                    })
+                    .unwrap();
                 s
             }
         }
@@ -158,7 +163,7 @@ macro_rules! content_from {
 
 impl<'a, S: ?Sized + ToOwned, T: ?Sized + ToOwned> From<&'a T> for Content<'a, S>
 where
-    S::Owned: Debug,
+    S: Debug,
     T: AsRef<S>,
 {
     fn from(s: &'a T) -> Self {
@@ -168,7 +173,7 @@ where
 
 impl<'a, S: ?Sized + ToOwned> From<fmt::Arguments<'a>> for Content<'a, S>
 where
-    S::Owned: Debug,
+    S: Debug,
 {
     fn from(args: fmt::Arguments<'a>) -> Self {
         Content::FmtArgs(args)
@@ -275,4 +280,20 @@ macro_rules! write_any {
             c.write_to($w)
         }
     };
+}
+
+#[macro_export]
+macro_rules! coerce_fmt_write {
+    ($w:expr) => {{
+        let w: &mut dyn fmt::Write = $w;
+        w
+    }};
+}
+
+#[macro_export]
+macro_rules! coerce_as_io_write {
+    ($w:expr) => {{
+        let w: &mut dyn io::Write = $w;
+        w
+    }};
 }

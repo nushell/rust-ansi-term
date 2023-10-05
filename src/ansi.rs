@@ -1,7 +1,7 @@
 #![allow(missing_docs)]
 use crate::style::{Color, Style};
 use crate::write::{AnyWrite, StrLike, WriteResult};
-use crate::{write_any_fmt, write_any_str};
+use crate::{coerce_fmt_write, write_any_fmt, write_any_str};
 use std::fmt;
 
 impl Style {
@@ -357,35 +357,38 @@ impl Color {
 
 impl fmt::Display for Prefix {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let f: &mut dyn fmt::Write = f;
-        self.0.write_prefix(f)
+        self.0.write_prefix(coerce_fmt_write!(f))
     }
 }
 
 impl fmt::Display for Infix {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use crate::difference::DiffEval;
-
-        match DiffEval::between(&self.0, &self.1) {
-            DiffEval::Extra(style) => {
-                let f: &mut dyn fmt::Write = f;
-                style.write_prefix(f)
-            }
-            DiffEval::Reset => {
-                let f: &mut dyn fmt::Write = f;
-                write!(f, "{}{}", RESET, self.1.prefix())
-            }
-            DiffEval::Zero => {
-                Ok(()) // nothing to write
-            }
+        if let Some(update) = self.0.compute_update(self.1) {
+            update.write_prefix(coerce_fmt_write!(f))
+        } else {
+            Ok(())
         }
+        // use crate::difference::DiffEval;
+
+        // match DiffEval::between(&self.0, &self.1) {
+        //     DiffEval::Extra(style) => {
+        //         let f: &mut dyn fmt::Write = f;
+        //         style.write_prefix(f)
+        //     }
+        //     DiffEval::Reset => {
+        //         let f: &mut dyn fmt::Write = f;
+        //         write!(f, "{}{}", RESET, self.1.prefix())
+        //     }
+        //     DiffEval::Zero => {
+        //         Ok(()) // nothing to write
+        //     }
+        // }
     }
 }
 
 impl fmt::Display for Suffix {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let f: &mut dyn fmt::Write = f;
-        self.0.write_suffix(f)
+        self.0.write_suffix(coerce_fmt_write!(f))
     }
 }
 
