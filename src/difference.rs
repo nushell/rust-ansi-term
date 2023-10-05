@@ -13,23 +13,23 @@ macro_rules! requires_reset {
     };
 }
 
-pub trait UpdateStyleValue: Default + Eq + PartialEq {
-    #[inline]
-    fn update(&self, next: Self, mut no_change: bool) -> (Self, bool) {
-        if self == next {
-            (Self::default(), no_change)
-        } else {
-            (next, false)
-        }
-    }
-}
-
-impl UpdateStyleValue for bool {}
-impl UpdateStyleValue for Option<Color> {}
-
 macro_rules! update_fields {
     ($result:ident, $self:ident, $next:ident | $($field:ident),*) => {
         {
+            pub trait UpdateStyleValue: Default + Eq + PartialEq {
+                #[inline]
+                fn update(&self, next: Self, mut no_change: bool) -> (Self, bool) {
+                    if self == next {
+                        (Self::default(), no_change)
+                    } else {
+                        (next, false)
+                    }
+                }
+            }
+
+            impl UpdateStyleValue for bool {}
+            impl UpdateStyleValue for Option<Color> {}
+
             let mut no_change = true;
             $(($result.$field, no_change) = $self.$field.update($next.$field, no_change);)*
 
@@ -43,7 +43,7 @@ macro_rules! update_fields {
 }
 
 impl Style {
-    fn incremental_update(self, next: Self) -> Self {
+    fn update_with(self, next: Self) -> Self {
         let mut result = if requires_reset!(
             self,
             next | is_bold,
@@ -80,8 +80,6 @@ impl Style {
 
 #[cfg(test)]
 mod test {
-    use super::DiffEval::*;
-    use super::*;
     use crate::style::Color::*;
     use crate::style::Style;
 
@@ -93,27 +91,27 @@ mod test {
         ($name: ident: $first: expr; $next: expr => $result: expr) => {
             #[test]
             fn $name() {
-                assert_eq!($result, Difference::between(&$first, &$next));
+                assert_eq!($result, $first.incremental_update($next));
             }
         };
     }
 
-    test!(nothing:    Green.normal(); Green.normal()  => Zero);
-    test!(uppercase:  Green.normal(); Green.bold()    => Extra(style().bold()));
-    test!(lowercase:  Green.bold();   Green.normal()  => Reset);
-    test!(nothing2:   Green.bold();   Green.bold()    => Zero);
+    test!(nothing:    Green.normal(); Green.normal()  => None);
+    test!(bold:  Green.normal(); Green.bold()    => Some(style().bold()));
+    test!(unbold:  Green.bold();   Green.normal()  => Some(style().fg(Green.normal()).prefix_with_reset()));
+    test!(nothing2:   Green.bold();   Green.bold()    => None);
 
-    test!(color_change: Red.normal(); Blue.normal() => Extra(Blue.normal()));
+    test!(color_change: Red.normal(); Blue.normal() => Some(style().fg(Blue.normal())));
 
-    test!(addition_of_blink:          style(); style().blink()          => Extra(style().blink()));
-    test!(addition_of_dimmed:         style(); style().dimmed()         => Extra(style().dimmed()));
-    test!(addition_of_hidden:         style(); style().hidden()         => Extra(style().hidden()));
-    test!(addition_of_reverse:        style(); style().reverse()        => Extra(style().reverse()));
-    test!(addition_of_strikethrough:  style(); style().strikethrough()  => Extra(style().strikethrough()));
+    test!(addition_of_blink:          style(); style().blink()          => Some(style().blink()));
+    test!(addition_of_dimmed:         style(); style().dimmed()         => Some(style().dimmed()));
+    test!(addition_of_hidden:         style(); style().hidden()         => Some(style().hidden()));
+    test!(addition_of_reverse:        style(); style().reverse()        => Some(style().reverse()));
+    test!(addition_of_strikethrough:  style(); style().strikethrough()  => Some(style().strikethrough()));
 
-    test!(removal_of_strikethrough:   style().strikethrough(); style()  => Reset);
-    test!(removal_of_reverse:         style().reverse();       style()  => Reset);
-    test!(removal_of_hidden:          style().hidden();        style()  => Reset);
-    test!(removal_of_dimmed:          style().dimmed();        style()  => Reset);
-    test!(removal_of_blink:           style().blink();         style()  => Reset);
+    test!(removal_of_strikethrough:   style().strikethrough(); style()  => Some(style().prefix_with_reset()));
+    test!(removal_of_reverse:         style().reverse();       style()  => Some(style().prefix_with_reset()));
+    test!(removal_of_hidden:          style().hidden();        style()  => Some(style().prefix_with_reset()));
+    test!(removal_of_dimmed:          style().dimmed();        style()  => Some(style().prefix_with_reset()));
+    test!(removal_of_blink:           style().blink();         style()  => Some(style().prefix_with_reset()));
 }
