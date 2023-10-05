@@ -1,6 +1,6 @@
 #![allow(missing_docs)]
 use crate::style::{Color, Style};
-use crate::write::{AnyWrite, WriteResult};
+use crate::write::{AnyWrite, StrLike, WriteResult};
 use crate::{write_any_fmt, write_any_str};
 use std::fmt;
 
@@ -9,6 +9,7 @@ impl Style {
     fn write_prefix<W: AnyWrite + ?Sized>(&self, f: &mut W) -> WriteResult<W::Error>
     where
         str: AsRef<W::Buf>,
+        W::Buf: ToOwned,
     {
         // If there are actually no styles here, then don’t write *any* codes
         // as the prefix. An empty ANSI code may not affect the terminal
