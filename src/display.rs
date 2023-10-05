@@ -485,7 +485,7 @@ mod tests {
     #[test]
     fn title() {
         let title = AnsiGenericString::title("Test Title");
-        assert_eq!(&title.content().to_string(), "\x1B]2;Test Title\x1B\\");
+        assert_eq!(&title.to_string(), "\x1B]2;Test Title\x1B\\");
         idempotent(title)
     }
 
