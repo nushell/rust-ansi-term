@@ -281,12 +281,24 @@ where
         self.contents.len()
     }
 
-    fn write_iter(&self) -> WriteIter<'_, 'a, S> {
-        unimplemented!()
+    fn write_iter(&self) -> WriteIter<'_, '_, S> {
+        WriteIter {
+            style_iter: StyleIter {
+                cursor: 0,
+                style_updates: &self.style_updates,
+                next_update: None,
+                current: None,
+            },
+            content_iter: ContentIter {
+                cursor: 0,
+                contents: &self.contents,
+                oscontrols: &self.oscontrols,
+            },
+        }
     }
 }
 
-pub struct StyleCursor<'a> {
+pub struct StyleIter<'a> {
     cursor: usize,
     style_updates: &'a Vec<StyleUpdate>,
     next_update: Option<StyleUpdate>,
@@ -362,7 +374,7 @@ pub struct WriteIter<'b, 'a, S: 'a + ToOwned + ?Sized>
 where
     S: fmt::Debug,
 {
-    style_iter: StyleCursor<'a>,
+    style_iter: StyleIter<'a>,
     content_iter: ContentIter<'b, 'a, S>,
 }
 
@@ -556,7 +568,7 @@ where
     S: fmt::Debug,
 {
     fn write_to_any<T: 'a + ToOwned + ?Sized, W: AnyWrite<Buf = T> + ?Sized>(
-        &self,
+        &'a self,
         w: &mut W,
     ) -> WriteResult<W::Error>
     where

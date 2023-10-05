@@ -70,7 +70,8 @@ impl Style {
             is_underline,
             is_blink,
             is_reverse,
-            is_strikethrough
+            is_strikethrough,
+            is_hidden
         ) {
             return Some(UpdateResult::new(next.prefix_with_reset()));
         } else {
