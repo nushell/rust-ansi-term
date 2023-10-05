@@ -74,7 +74,7 @@ impl Style {
     /// let style = Style::new().reset_before_style();
     /// println!("{}", style.paint("hey"));
     /// ```
-    pub const fn reset_before_style(&self) -> Style {
+    pub const fn prefix_with_reset(&self) -> Style {
         Style {
             prefix_with_reset: true,
             ..*self
@@ -243,7 +243,7 @@ impl Style {
     /// let style = Style::new().on(Color::Blue);
     /// println!("{}", style.paint("eyyyy"));
     /// ```
-    pub const fn on(&self, background: Color) -> Style {
+    pub const fn bg(&self, background: Color) -> Style {
         Style {
             background: Some(background),
             ..*self

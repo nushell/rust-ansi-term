@@ -7,7 +7,7 @@ use std::io;
 #[derive(Debug)]
 enum OSControl<'a, S: 'a + ToOwned + ?Sized>
 where
-    <S as ToOwned>::Owned: fmt::Debug,
+    S: fmt::Debug,
 {
     Title,
     Link { url: Content<'a, S> },
@@ -15,7 +15,7 @@ where
 
 impl<'a, S: ToOwned + ?Sized> Clone for OSControl<'a, S>
 where
-    <S as ToOwned>::Owned: fmt::Debug,
+    S: fmt::Debug,
 {
     fn clone(&self) -> Self {
         match self {
@@ -31,7 +31,7 @@ where
 #[derive(Debug)]
 pub struct AnsiGenericString<'a, S: ToOwned + ?Sized>
 where
-    <S as ToOwned>::Owned: fmt::Debug,
+    S: fmt::Debug,
 {
     pub(crate) style: Style,
     pub(crate) content: Content<'a, S>,
@@ -51,7 +51,7 @@ where
 /// ```
 impl<'a, S: ToOwned + ?Sized> Clone for AnsiGenericString<'a, S>
 where
-    <S as ToOwned>::Owned: fmt::Debug,
+    S: fmt::Debug,
 {
     fn clone(&self) -> AnsiGenericString<'a, S> {
         AnsiGenericString {
@@ -85,7 +85,7 @@ where
 
 impl<'a, S: ToOwned + ?Sized> From<&'a S> for AnsiGenericString<'a, S>
 where
-    <S as ToOwned>::Owned: fmt::Debug,
+    S: fmt::Debug,
     S: AsRef<S>,
 {
     fn from(s: &'a S) -> Self {
@@ -99,7 +99,7 @@ where
 
 impl<'a, S: ToOwned + ?Sized> From<fmt::Arguments<'a>> for AnsiGenericString<'a, S>
 where
-    <S as ToOwned>::Owned: fmt::Debug,
+    S: fmt::Debug,
 {
     fn from(args: fmt::Arguments<'a>) -> Self {
         AnsiGenericString {
@@ -139,7 +139,7 @@ pub type AnsiByteString<'a> = AnsiGenericString<'a, [u8]>;
 
 impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericString<'a, S>
 where
-    <S as ToOwned>::Owned: fmt::Debug,
+    S: fmt::Debug,
 {
     /// Directly access the style
     pub const fn style(&self) -> &Style {
@@ -153,6 +153,10 @@ where
 
     pub fn content(&self) -> &Content<'a, S> {
         &self.content
+    }
+
+    pub fn oscontrol(&self) -> &OSControl<'a, S> {
+        &self.oscontrol
     }
 
     // Instances that imply wrapping in OSC sequences
@@ -222,11 +226,64 @@ where
 #[derive(Debug)]
 pub struct AnsiGenericStrings<'a, S: ToOwned + ?Sized>
 where
-    <S as ToOwned>::Owned: fmt::Debug,
+    S: fmt::Debug,
 {
-    _args: Vec<Content<'a, S>>,
-    _styles: Vec<(usize, Style)>,
-    _oscontrols: Vec<OSControl<'a, S>>,
+    contents: Vec<Content<'a, S>>,
+    styles: Vec<(usize, Style)>,
+    oscontrols: Vec<OSControl<'a, S>>,
+}
+
+impl<'a, S: ToOwned + ?Sized> AnsiGenericStrings<'a, S>
+where
+    S: fmt::Debug,
+{
+    pub fn empty(capacity: usize) -> Self {
+        Self {
+            contents: Vec::with_capacity(capacity),
+            styles: Vec::with_capacity(capacity),
+            oscontrols: Vec::with_capacity(capacity),
+        }
+    }
+
+    fn push(&mut self, s: AnsiGenericString<'a, S>) {
+        // Content push should happen first, as push_styles depends on the new
+        // length of the contents vector.
+        self.push_content(s.content());
+        self.push_style(s.style());
+        self.push_oscontrol(s.oscontrol());
+    }
+
+    fn push_style(&self, style: &Style) {
+        if let Some((ix, style)) = self.styles.last() {
+            match  {
+
+            }
+        } else {
+            self.styles.push((self.contents.len(), *style))
+        }
+    }
+
+    fn push_oscontrol(&self, oscontrol: &OSControl<'_, S>) {
+        todo!()
+    }
+
+    fn push_content(&self, content: &Content<'_, S>) {
+        todo!()
+    }
+}
+
+impl<'a, S: ToOwned + ?Sized> FromIterator<AnsiGenericString<'a, S>> for AnsiGenericStrings<'a, S>
+where
+    S: fmt::Debug,
+{
+    fn from_iter<Iterable: IntoIterator<Item = AnsiGenericString<'a, S>>>(iter: Iterable) -> Self {
+        let iter = iter.into_iter();
+        let mut ansi_strings = AnsiGenericStrings::empty(iter.by_ref().count());
+        for s in iter.into_iter() {
+            ansi_strings.push(s);
+        }
+        ansi_strings
+    }
 }
 
 /// A set of `AnsiString`s collected together, in order to be written with a
@@ -257,7 +314,7 @@ impl Style {
     pub fn paint<'a, I, S: ToOwned + ?Sized>(self, input: I) -> AnsiGenericString<'a, S>
     where
         I: Into<Content<'a, S>>,
-        <S as ToOwned>::Owned: fmt::Debug,
+        S: fmt::Debug,
     {
         AnsiGenericString {
             style: self,
@@ -280,7 +337,7 @@ impl Color {
     pub fn paint<'a, I, S: ToOwned + ?Sized>(self, input: I) -> AnsiGenericString<'a, S>
     where
         I: Into<Content<'a, S>>,
-        <S as ToOwned>::Owned: fmt::Debug,
+        S: fmt::Debug,
     {
         AnsiGenericString {
             content: input.into(),
@@ -310,16 +367,16 @@ impl<'a> AnsiByteString<'a> {
 
 impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericString<'a, S>
 where
-    <S as ToOwned>::Owned: fmt::Debug,
+    S: fmt::Debug,
 {
     // write the part within the styling prefix and suffix
-    fn write_inner<T: 'a + ToOwned + ?Sized, W: AnyWrite<Buf = T> + ?Sized>(
+    fn write_inner<Self: 'a + ToOwned + ?Sized, W: AnyWrite<Buf = Self> + ?Sized>(
         &self,
         w: &mut W,
     ) -> WriteResult<W::Error>
     where
-        S: StrLike<'a, T> + AsRef<T>,
-        str: AsRef<T>,
+        S: StrLike<'a, Self> + AsRef<Self>,
+        str: AsRef<Self>,
     {
         match &self.oscontrol {
             Some(OSControl::Link { url: u, .. }) => {
@@ -338,13 +395,13 @@ where
         }
     }
 
-    fn write_to_any<T: 'a + ToOwned + ?Sized, W: AnyWrite<Buf = T> + ?Sized>(
+    fn write_to_any<Self: 'a + ToOwned + ?Sized, W: AnyWrite<Buf = Self> + ?Sized>(
         &self,
         w: &mut W,
     ) -> WriteResult<W::Error>
     where
-        S: StrLike<'a, T> + AsRef<T>,
-        str: AsRef<T>,
+        S: StrLike<'a, Self> + AsRef<Self>,
+        str: AsRef<Self>,
     {
         write_any_fmt!(w, "{}", self.style.prefix())?;
         self.write_inner(w)?;
@@ -373,7 +430,7 @@ impl<'a> AnsiByteStrings<'a> {
 
 impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S>
 where
-    <S as ToOwned>::Owned: fmt::Debug,
+    S: fmt::Debug,
 {
     fn write_to_any<W: AnyWrite<Buf = S> + ?Sized>(&self, _w: &mut W) -> WriteResult<W::Error> {
         unimplemented!()

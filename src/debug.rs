@@ -108,7 +108,7 @@ mod test {
     test!(both:    Style::new().bold().italic()  => "Style { bold, italic }");
 
     test!(red:     Red.normal()                     => "Style { fg(Red) }");
-    test!(redblue: Red.normal().on(Rgb(3, 2, 4))    => "Style { fg(Red), on(Rgb(3, 2, 4)) }");
+    test!(redblue: Red.normal().bg(Rgb(3, 2, 4))    => "Style { fg(Red), on(Rgb(3, 2, 4)) }");
 
     test!(everything:
             Red.on(Blue).blink().bold().dimmed().hidden().italic().reverse().strikethrough().underline() =>

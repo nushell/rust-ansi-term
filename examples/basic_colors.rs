@@ -20,9 +20,9 @@ fn main() {
     println!("\nreset_before_style at work:");
     println!(
         "\x1b[33mReset {} \x1b[33mand {}\x1b[0m",
-        Style::new().reset_before_style().bold().paint("bold"),
+        Style::new().prefix_with_reset().bold().paint("bold"),
         Style::new()
-            .reset_before_style()
+            .prefix_with_reset()
             .underline()
             .paint("underline")
     );
