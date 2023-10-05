@@ -78,12 +78,12 @@ where
     }
 }
 
-impl<'a, S: 'a + ?Sized + ToOwned + StrLike<'a, Self>, Self: 'a + ?Sized + ToOwned> StrLike<'a, Self>
+impl<'a, S: 'a + ?Sized + ToOwned + StrLike<'a, T>, T: 'a + ?Sized + ToOwned> StrLike<'a, T>
     for &'a S
 where
-    S: AsRef<Self>,
+    S: AsRef<T>,
 {
-    fn write_str_to<W: AnyWrite<Buf = Self> + ?Sized>(&self, w: &mut W) -> WriteResult<W::Error> {
+    fn write_str_to<W: AnyWrite<Buf = T> + ?Sized>(&self, w: &mut W) -> WriteResult<W::Error> {
         w.write_any_str(self.as_ref())
     }
 }
@@ -156,12 +156,12 @@ macro_rules! content_from {
     };
 }
 
-impl<'a, S: ?Sized + ToOwned, Self: ?Sized + ToOwned> From<&'a Self> for Content<'a, S>
+impl<'a, S: ?Sized + ToOwned, T: ?Sized + ToOwned> From<&'a T> for Content<'a, S>
 where
     S::Owned: Debug,
-    Self: AsRef<S>,
+    T: AsRef<S>,
 {
-    fn from(s: &'a Self) -> Self {
+    fn from(s: &'a T) -> Self {
         Content::StrLike(Cow::Borrowed(s.as_ref()))
     }
 }
