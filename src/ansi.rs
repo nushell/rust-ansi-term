@@ -6,7 +6,7 @@ use std::fmt;
 
 impl Style {
     /// Write any bytes that go *before* a piece of text to the given writer.
-    fn write_prefix<W: AnyWrite + ?Sized>(&self, f: &mut W) -> WriteResult<W::Error>
+    pub fn write_prefix<W: AnyWrite + ?Sized>(&self, f: &mut W) -> WriteResult<W::Error>
     where
         str: AsRef<W::Buf>,
         W::Buf: ToOwned,
@@ -363,7 +363,7 @@ impl fmt::Display for Prefix {
 
 impl fmt::Display for Infix {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if let Some(update) = self.0.compute_update(self.1) {
+        if let Some(update) = self.0.compute_update(self.1).map(|r| r.style) {
             update.write_prefix(coerce_fmt_write!(f))
         } else {
             Ok(())

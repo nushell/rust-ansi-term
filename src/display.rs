@@ -1,11 +1,12 @@
+use crate::difference::UpdateResult;
 use crate::style::{Color, Style};
 use crate::write::{AnyWrite, Content, StrLike, WriteResult};
-use crate::{write_any_fmt, write_any_str, coerce_fmt_write};
+use crate::{coerce_fmt_write, write_any_fmt, write_any_str};
 use std::fmt;
 use std::io;
 
 #[derive(Debug)]
-enum OSControl<'a, S: 'a + ToOwned + ?Sized>
+pub enum OSControl<'a, S: 'a + ToOwned + ?Sized>
 where
     S: fmt::Debug,
 {
@@ -13,7 +14,7 @@ where
     Link { url: Content<'a, S> },
 }
 
-impl<'a, S: ToOwned + ?Sized> Clone for OSControl<'a, S>
+impl<'a, S: 'a + ToOwned + ?Sized> Clone for OSControl<'a, S>
 where
     S: fmt::Debug,
 {
@@ -29,7 +30,7 @@ where
 /// display that string.  `AnsiString` and `AnsiByteString` are aliases for
 /// this type on `str` and `\[u8]`, respectively.
 #[derive(Debug)]
-pub struct AnsiGenericString<'a, S: ToOwned + ?Sized>
+pub struct AnsiGenericString<'a, S: 'a + ToOwned + ?Sized>
 where
     S: fmt::Debug,
 {
@@ -49,7 +50,7 @@ where
 /// let clone_string = plain_string.clone();
 /// assert_eq!(clone_string, plain_string);
 /// ```
-impl<'a, S: ToOwned + ?Sized> Clone for AnsiGenericString<'a, S>
+impl<'a, S: 'a + ToOwned + ?Sized> Clone for AnsiGenericString<'a, S>
 where
     S: fmt::Debug,
 {
@@ -83,7 +84,7 @@ where
 //
 // The hand-written impl above can ignore that constraint and still compile.
 
-impl<'a, S: ToOwned + ?Sized> From<&'a S> for AnsiGenericString<'a, S>
+impl<'a, S: 'a + ToOwned + ?Sized> From<&'a S> for AnsiGenericString<'a, S>
 where
     S: fmt::Debug,
     S: AsRef<S>,
@@ -97,7 +98,7 @@ where
     }
 }
 
-impl<'a, S: ToOwned + ?Sized> From<fmt::Arguments<'a>> for AnsiGenericString<'a, S>
+impl<'a, S: 'a + ToOwned + ?Sized> From<fmt::Arguments<'a>> for AnsiGenericString<'a, S>
 where
     S: fmt::Debug,
 {
@@ -224,66 +225,183 @@ where
 /// A set of `AnsiGenericStrings`s collected together, in order to be
 /// written with a minimum of control characters.
 #[derive(Debug)]
-pub struct AnsiGenericStrings<'a, S: ToOwned + ?Sized>
+pub struct AnsiGenericStrings<'a, S: 'a + ToOwned + ?Sized>
 where
     S: fmt::Debug,
 {
     contents: Vec<Content<'a, S>>,
-    styles: Vec<(usize, Style)>,
+    style_updates: Vec<StyleUpdate>,
     oscontrols: Vec<Option<OSControl<'a, S>>>,
 }
 
-impl<'a, S: ToOwned + ?Sized> AnsiGenericStrings<'a, S>
+impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S>
 where
     S: fmt::Debug,
 {
     pub fn empty(capacity: usize) -> Self {
         Self {
             contents: Vec::with_capacity(capacity),
-            styles: Vec::with_capacity(capacity),
+            style_updates: Vec::with_capacity(capacity),
             oscontrols: Vec::with_capacity(capacity),
         }
     }
 
-    fn push(&mut self, s: AnsiGenericString<'a, S>) {
-        // Content push should happen first, as push_styles depends on the new
-        // length of the contents vector.
-        self.push_content(s.content().clone());
-        self.push_style(*s.style());
+    pub fn push(&mut self, s: AnsiGenericString<'a, S>) {
+        let index = self.push_content(s.content().clone());
+        self.push_style(*s.style(), index);
         self.push_oscontrol(s.oscontrol().clone());
     }
 
-    fn push_style(&self, next: Style) {
-        let update = if let Some((ix, style)) = self.styles.last() {
-            style.compute_update(next)
-        } else {
-            Some(next)
-        };
-
-        if let Some(update) = update {
-            self.styles.push((self.contents.len(), update))
+    fn push_style(&mut self, next: Style, begins_at: usize) {
+        if let Some(update) = self
+            .style_updates
+            .last()
+            .and_then(|inc_style| inc_style.style.compute_update(next))
+        {
+            let UpdateResult {
+                style,
+                is_plain_except_reset,
+            } = update;
+            self.style_updates.push(StyleUpdate {
+                begins_at,
+                style,
+                is_plain_except_reset,
+            })
         }
     }
 
     #[inline]
-    fn push_oscontrol(&self, oscontrol: Option<OSControl<'_, S>>) {
+    fn push_oscontrol(&mut self, oscontrol: Option<OSControl<'a, S>>) {
         self.oscontrols.push(oscontrol)
     }
 
     #[inline]
-    fn push_content(&self, content: Content<'_, S>) {
+    fn push_content(&mut self, content: Content<'a, S>) -> usize {
         self.contents.push(content);
+        self.contents.len()
+    }
+
+    fn write_iter(&self) -> WriteIter<'_, 'a, S> {
+        unimplemented!()
     }
 }
 
-impl<'a, 'b, S: ToOwned + ?Sized> FromIterator<&'b AnsiGenericString<'a, S>> for AnsiGenericStrings<'a, S>
+pub struct StyleCursor<'a> {
+    cursor: usize,
+    style_updates: &'a Vec<StyleUpdate>,
+    next_update: Option<StyleUpdate>,
+    current: Option<StyleUpdate>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StyleUpdate {
+    style: Style,
+    is_plain_except_reset: bool,
+    begins_at: usize,
+}
+
+impl<'a> StyleCursor<'a> {
+    fn get_next_update(&mut self) {
+        self.cursor += 1;
+        self.next_update = self.style_updates.get(self.cursor).copied();
+    }
+}
+
+impl<'b> Iterator for StyleCursor<'b> {
+    type Item = StyleUpdate;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match (self.current, self.next_update) {
+            (None, None) => {
+                self.current = self.style_updates.get(self.cursor).copied();
+                self.get_next_update();
+                self.current
+            }
+            (current, Some(next_update)) => {
+                if self.cursor < next_update.begins_at {
+                    current
+                } else {
+                    self.current = self.next_update.take();
+                    self.cursor += 1;
+                    self.next_update = self.style_updates.get(self.cursor).copied();
+                    self.current
+                }
+            }
+            (Some(current), None) => current.into(),
+        }
+    }
+}
+
+pub struct ContentIter<'b, 'a: 'b, S: 'a + ToOwned + ?Sized>
 where
     S: fmt::Debug,
 {
-    fn from_iter<Iterable: IntoIterator<Item = &'b AnsiGenericString<'a, S>>>(iter: Iterable) -> Self {
-        let mut iter = iter.into_iter();
-        let iter_count = iter.cloned().count();
-        let mut ansi_strings = AnsiGenericStrings::empty(iter_count);
+    cursor: usize,
+    contents: &'b Vec<Content<'a, S>>,
+    oscontrols: &'b Vec<Option<OSControl<'a, S>>>,
+}
+
+impl<'b, 'a: 'b, S: 'a + ToOwned + ?Sized> Iterator for ContentIter<'b, 'a, S>
+where
+    S: fmt::Debug,
+{
+    type Item = (Content<'a, S>, Option<OSControl<'a, S>>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.contents.get(self.cursor).map(|content| {
+            self.cursor += 1;
+            (
+                content.clone(),
+                self.oscontrols.get(self.cursor).cloned().flatten(),
+            )
+        })
+    }
+}
+
+pub struct WriteIter<'b, 'a, S: 'a + ToOwned + ?Sized>
+where
+    S: fmt::Debug,
+{
+    style_iter: StyleCursor<'a>,
+    content_iter: ContentIter<'b, 'a, S>,
+}
+
+impl<'b, 'a, S: 'a + ToOwned + ?Sized> Iterator for WriteIter<'b, 'a, S>
+where
+    S: fmt::Debug,
+{
+    type Item = (bool, AnsiGenericString<'a, S>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let (content, oscontrol) = self.content_iter.next()?;
+        let (style, is_plain) = self
+            .style_iter
+            .next()
+            .map(|update| (update.style, update.is_plain_except_reset))
+            .unwrap_or((Style::default(), true));
+        Some((
+            is_plain,
+            AnsiGenericString {
+                style,
+                content,
+                oscontrol,
+            },
+        ))
+    }
+}
+
+impl<'a, S: 'a + ToOwned + ?Sized> FromIterator<&'a AnsiGenericString<'a, S>>
+    for AnsiGenericStrings<'a, S>
+where
+    S: fmt::Debug,
+{
+    fn from_iter<Iterable: IntoIterator<Item = &'a AnsiGenericString<'a, S>>>(
+        iter: Iterable,
+    ) -> Self {
+        let iter = iter.into_iter();
+        let (lower, upper) = iter.size_hint();
+        let count = upper.unwrap_or(lower);
+        let mut ansi_strings = AnsiGenericStrings::empty(count);
         for s in iter {
             ansi_strings.push(s.clone());
         }
@@ -316,7 +434,7 @@ pub fn AnsiByteStrings<'a>(_arg: &'a [AnsiByteString<'a>]) -> AnsiByteStrings<'a
 impl Style {
     /// Paints the given text with this color, returning an ANSI string.
     #[must_use]
-    pub fn paint<'a, I, S: ToOwned + ?Sized>(self, input: I) -> AnsiGenericString<'a, S>
+    pub fn paint<'a, I, S: 'a + ToOwned + ?Sized>(self, input: I) -> AnsiGenericString<'a, S>
     where
         I: Into<Content<'a, S>>,
         S: fmt::Debug,
@@ -339,7 +457,7 @@ impl Color {
     /// println!("{}", Blue.paint("da ba dee"));
     /// ```
     #[must_use]
-    pub fn paint<'a, I, S: ToOwned + ?Sized>(self, input: I) -> AnsiGenericString<'a, S>
+    pub fn paint<'a, I, S: 'a + ToOwned + ?Sized>(self, input: I) -> AnsiGenericString<'a, S>
     where
         I: Into<Content<'a, S>>,
         S: fmt::Debug,
@@ -374,41 +492,42 @@ where
     S: fmt::Debug,
 {
     // write the part within the styling prefix and suffix
-    fn write_inner<Self: 'a + ToOwned + ?Sized, W: AnyWrite<Buf = Self> + ?Sized>(
-        &self,
+    fn write_inner<T: 'a + ToOwned + ?Sized, W: AnyWrite<Buf = T> + ?Sized>(
+        content: &Content<'a, S>,
+        oscontrol: &Option<OSControl<'a, S>>,
         w: &mut W,
     ) -> WriteResult<W::Error>
     where
-        S: StrLike<'a, Self> + AsRef<Self>,
-        str: AsRef<Self>,
+        S: StrLike<'a, T> + AsRef<T>,
+        str: AsRef<T>,
     {
-        match &self.oscontrol {
+        match oscontrol {
             Some(OSControl::Link { url: u, .. }) => {
                 write_any_str!(w, "\x1B]8;;")?;
                 u.write_to(w)?;
                 write_any_str!(w, "\x1B\x5C")?;
-                self.content.write_to(w)?;
+                content.write_to(w)?;
                 write_any_str!(w, "\x1B]8;;\x1B\x5C")
             }
             Some(OSControl::Title) => {
                 write_any_str!(w, "\x1B]2;")?;
-                self.content.write_to(w)?;
+                content.write_to(w)?;
                 write_any_str!(w, "\x1B\x5C")
             }
-            None => self.content.write_to(w),
+            None => content.write_to(w),
         }
     }
 
-    fn write_to_any<Self: 'a + ToOwned + ?Sized, W: AnyWrite<Buf = Self> + ?Sized>(
+    fn write_to_any<T: 'a + ToOwned + ?Sized, W: AnyWrite<Buf = T> + ?Sized>(
         &self,
         w: &mut W,
     ) -> WriteResult<W::Error>
     where
-        S: StrLike<'a, Self> + AsRef<Self>,
-        str: AsRef<Self>,
+        S: StrLike<'a, T> + AsRef<T>,
+        str: AsRef<T>,
     {
         write_any_fmt!(w, "{}", self.style.prefix())?;
-        self.write_inner(w)?;
+        Self::write_inner(&self.content, &self.oscontrol, w)?;
         write_any_fmt!(w, "{}", self.style.suffix())
     }
 }
@@ -436,38 +555,26 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S>
 where
     S: fmt::Debug,
 {
-    fn write_to_any<W: AnyWrite<Buf = S> + ?Sized>(&self, _w: &mut W) -> WriteResult<W::Error> {
-        unimplemented!()
-        // use self::Difference::*;
+    fn write_to_any<T: 'a + ToOwned + ?Sized, W: AnyWrite<Buf = T> + ?Sized>(
+        &self,
+        w: &mut W,
+    ) -> WriteResult<W::Error>
+    where
+        S: StrLike<'a, T> + AsRef<T>,
+        str: AsRef<T>,
+    {
+        let mut last_is_plain = true;
 
-        // let first = match self.0.first() {
-        //     None => return Ok(()),
-        //     Some(f) => f,
-        // };
+        for (is_plain, generic_string) in self.write_iter() {
+            generic_string.write_to_any(w)?;
+            last_is_plain = is_plain;
+        }
 
-        // write_any_fmt!(w, "{}", first.style.prefix())?;
-        // first.write_inner(w)?;
-
-        // for window in self.0.windows(2) {
-        //     match Difference::between(&window[0].style, &window[1].style) {
-        //         ExtraStyles(style) => write_any_fmt!(w, "{}", style.prefix())?,
-        //         Reset => write_any_fmt!(w, "{}{}", RESET, window[1].style.prefix())?,
-        //         Empty => { /* Do nothing! */ }
-        //     }
-
-        //     window[1].write_inner(w)?;
-        // }
-
-        // // Write the final reset string after all of the AnsiStrings have been
-        // // written, *except* if the last one has no styles, because it would
-        // // have already been written by this point.
-        // if let Some(last) = self.0.last() {
-        //     if !last.style.is_plain() {
-        //         write_any_fmt!(w, "{}", RESET)?;
-        //     }
-        // }
-
-        // Ok(())
+        if last_is_plain {
+            Ok(())
+        } else {
+            Style::default().prefix_with_reset().write_prefix(w)
+        }
     }
 }
 

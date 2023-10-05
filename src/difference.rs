@@ -18,7 +18,7 @@ macro_rules! update_fields {
         {
             pub trait UpdateStyleValue: Default + Eq + PartialEq {
                 #[inline]
-                fn update(&self, next: Self, mut no_change: bool) -> (Self, bool) {
+                fn update(&self, next: Self, no_change: bool) -> (Self, bool) {
                     if *self == next {
                         (Self::default(), no_change)
                     } else {
@@ -34,7 +34,7 @@ macro_rules! update_fields {
             $(($result.$field, no_change) = $self.$field.update($next.$field, no_change);)*
 
             if !no_change {
-                Some($result)
+                Some(UpdateResult::new($result))
             } else {
                 None
             }
@@ -42,8 +42,26 @@ macro_rules! update_fields {
     };
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct UpdateResult {
+    pub style: Style,
+    pub is_plain_except_reset: bool,
+}
+
+impl UpdateResult {
+    pub fn new(style: Style) -> Self {
+        Self {
+            style,
+            is_plain_except_reset: Style {
+                prefix_with_reset: false,
+                ..style
+            } == Style::default(),
+        }
+    }
+}
+
 impl Style {
-    pub fn compute_update(self, next: Self) -> Option<Style> {
+    pub fn compute_update(self, next: Self) -> Option<UpdateResult> {
         let mut result = if requires_reset!(
             self,
             next | is_bold,
@@ -54,7 +72,7 @@ impl Style {
             is_reverse,
             is_strikethrough
         ) {
-            return Some(next.prefix_with_reset());
+            return Some(UpdateResult::new(next.prefix_with_reset()));
         } else {
             let mut result = next;
             result.prefix_with_reset = false;
@@ -91,7 +109,7 @@ mod test {
         ($name: ident: $first: expr; $next: expr => $result: expr) => {
             #[test]
             fn $name() {
-                assert_eq!($result, $first.compute_update($next));
+                assert_eq!($result, $first.compute_update($next).map(|r| r.style));
             }
         };
     }
