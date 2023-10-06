@@ -1,4 +1,4 @@
-use crate::difference::UpdateCommand;
+use crate::difference::StyleDelta;
 use crate::style::{Color, Style};
 use crate::write::{AnyWrite, Content, StrLike, WriteResult};
 use crate::{coerce_fmt_write, write_any_fmt, write_any_str};
@@ -256,12 +256,12 @@ where
         let instructions = self
             .style_updates
             .last()
-            .map(|style_update| style_update.command.update_relative(next))
+            .map(|style_update| style_update.command.delta_next(next))
             .unwrap_or_else(|| {
                 if next.is_plain() {
-                    UpdateCommand::DoNothing
+                    StyleDelta::Empty
                 } else {
-                    UpdateCommand::Prefix(next)
+                    StyleDelta::PrefixUsing(next)
                 }
             });
 
@@ -308,7 +308,7 @@ pub struct StyleIter<'a> {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct StyleUpdate {
-    command: UpdateCommand,
+    command: StyleDelta,
     begins_at: usize,
 }
 
@@ -320,7 +320,7 @@ impl<'a> StyleIter<'a> {
 }
 
 impl<'b> Iterator for StyleIter<'b> {
-    type Item = UpdateCommand;
+    type Item = StyleDelta;
 
     fn next(&mut self) -> Option<Self::Item> {
         match (self.current, self.next_update) {
@@ -387,7 +387,7 @@ impl<'b, 'a, S: 'a + ToOwned + ?Sized> Iterator for WriteIter<'b, 'a, S>
 where
     S: fmt::Debug,
 {
-    type Item = (UpdateCommand, Content<'a, S>, Option<OSControl<'a, S>>);
+    type Item = (StyleDelta, Content<'a, S>, Option<OSControl<'a, S>>);
 
     fn next(&mut self) -> Option<Self::Item> {
         let (content, oscontrol) = self.content_iter.next()?;
@@ -470,7 +470,7 @@ impl Color {
     {
         AnsiGenericString {
             content: input.into(),
-            style: self.normal(),
+            style: self.foreground(),
             oscontrol: None,
         }
     }
@@ -573,11 +573,11 @@ where
 
         for (style_command, content, oscontrol) in self.write_iter() {
             match style_command {
-                UpdateCommand::Prefix(style) => {
+                StyleDelta::PrefixUsing(style) => {
                     style.write_prefix(w)?;
                     last_is_plain = style.is_plain();
                 }
-                UpdateCommand::DoNothing => {}
+                StyleDelta::Empty => {}
             }
             AnsiGenericString::write_inner(&content, &oscontrol, w)?;
         }

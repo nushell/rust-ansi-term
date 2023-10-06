@@ -1,5 +1,5 @@
 #![allow(missing_docs)]
-use crate::difference::UpdateCommand;
+use crate::difference::StyleDelta;
 use crate::style::{Color, Style};
 use crate::write::{AnyWrite, StrLike, WriteResult};
 use crate::{coerce_fmt_write, write_any_fmt, write_any_str};
@@ -13,7 +13,7 @@ impl Style {
         W::Buf: ToOwned,
     {
         // Prefix everything with reset characters if needed
-        if self.prefix_with_reset {
+        if self.is_prefix_with_reset() {
             write_any_str!(f, "\x1B[0m")?
         }
 
@@ -41,28 +41,28 @@ impl Style {
                 Ok(())
             };
 
-            if self.is_bold {
+            if self.is_bold() {
                 write_char('1')?
             }
-            if self.is_dimmed {
+            if self.is_dimmed() {
                 write_char('2')?
             }
-            if self.is_italic {
+            if self.is_italic() {
                 write_char('3')?
             }
-            if self.is_underline {
+            if self.is_underline() {
                 write_char('4')?
             }
-            if self.is_blink {
+            if self.is_blink() {
                 write_char('5')?
             }
-            if self.is_reverse {
+            if self.is_reverse() {
                 write_char('7')?
             }
-            if self.is_hidden {
+            if self.is_hidden() {
                 write_char('8')?
             }
-            if self.is_strikethrough {
+            if self.is_strikethrough() {
                 write_char('9')?
             }
         }
@@ -70,19 +70,19 @@ impl Style {
         // The foreground and background colors, if specified, need to be
         // handled specially because the number codes are more complicated.
         // (see `write_background_code` and `write_foreground_code`)
-        if let Some(bg) = self.background {
+        if let Some(background) = self.is_background() {
             if written_anything {
                 write_any_str!(f, ";")?;
             }
             written_anything = true;
-            bg.write_background_code(f)?;
+            background.write_background_code(f)?;
         }
 
-        if let Some(fg) = self.foreground {
+        if let Some(foreground) = self.is_foreground() {
             if written_anything {
                 write_any_str!(f, ";")?;
             }
-            fg.write_foreground_code(f)?;
+            foreground.write_foreground_code(f)?;
         }
 
         // All the codes end with an `m`, because reasons.
@@ -317,7 +317,7 @@ impl Color {
     ///            Green.prefix().to_string());
     /// ```
     pub fn prefix(self) -> Prefix {
-        Prefix(self.normal())
+        Prefix(self.foreground())
     }
 
     /// The infix bytes between this color and `next` color. These are the bytes
@@ -335,7 +335,7 @@ impl Color {
     ///            Red.infix(Yellow).to_string());
     /// ```
     pub fn infix(self, next: Color) -> Infix {
-        Infix(self.normal(), next.normal())
+        Infix(self.foreground(), next.foreground())
     }
 
     /// The suffix for this color as a `Style`. These are the bytes that
@@ -352,7 +352,7 @@ impl Color {
     ///            Purple.suffix().to_string());
     /// ```
     pub fn suffix(self) -> Suffix {
-        Suffix(self.normal())
+        Suffix(self.foreground())
     }
 }
 
@@ -364,9 +364,9 @@ impl fmt::Display for Prefix {
 
 impl fmt::Display for Infix {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match UpdateCommand::compare_styles(self.0, self.1) {
-            UpdateCommand::Prefix(style) => style.write_prefix(coerce_fmt_write!(f)),
-            UpdateCommand::DoNothing => Ok(()),
+        match self.0.compute_delta(self.1) {
+            StyleDelta::PrefixUsing(style) => style.write_prefix(coerce_fmt_write!(f)),
+            StyleDelta::Empty => Ok(()),
         }
     }
 }
@@ -399,31 +399,31 @@ mod test {
 
     test!(plain:                 Style::default();                  "text/plain" => "text/plain");
     test!(red:                   Red;                               "hi" => "\x1B[31mhi\x1B[0m");
-    test!(black:                 Black.normal();                    "hi" => "\x1B[30mhi\x1B[0m");
+    test!(black:                 Black.foreground();                    "hi" => "\x1B[30mhi\x1B[0m");
     test!(yellow_bold:           Yellow.bold();                     "hi" => "\x1B[1;33mhi\x1B[0m");
-    test!(yellow_bold_2:         Yellow.normal().bold();            "hi" => "\x1B[1;33mhi\x1B[0m");
+    test!(yellow_bold_2:         Yellow.foreground().bold();            "hi" => "\x1B[1;33mhi\x1B[0m");
     test!(blue_underline:        Blue.underline();                  "hi" => "\x1B[4;34mhi\x1B[0m");
     test!(green_bold_ul:         Green.bold().underline();          "hi" => "\x1B[1;4;32mhi\x1B[0m");
     test!(green_bold_ul_2:       Green.underline().bold();          "hi" => "\x1B[1;4;32mhi\x1B[0m");
-    test!(purple_on_white:       Purple.bg(White);                  "hi" => "\x1B[47;35mhi\x1B[0m");
-    test!(purple_on_white_2:     Purple.normal().bg(White);         "hi" => "\x1B[47;35mhi\x1B[0m");
-    test!(yellow_on_blue:        Style::new().bg(Blue).fg(Yellow);  "hi" => "\x1B[44;33mhi\x1B[0m");
-    test!(magenta_on_white:      Magenta.bg(White);                  "hi" => "\x1B[47;35mhi\x1B[0m");
-    test!(magenta_on_white_2:    Magenta.normal().bg(White);         "hi" => "\x1B[47;35mhi\x1B[0m");
-    test!(yellow_on_blue_2:      Cyan.bg(Blue).fg(Yellow);          "hi" => "\x1B[44;33mhi\x1B[0m");
-    test!(yellow_on_blue_reset:  Cyan.bg(Blue).prefix_with_reset().fg(Yellow); "hi" => "\x1B[0m\x1B[44;33mhi\x1B[0m");
-    test!(yellow_on_blue_reset_2: Cyan.bg(Blue).fg(Yellow).prefix_with_reset(); "hi" => "\x1B[0m\x1B[44;33mhi\x1B[0m");
-    test!(cyan_bold_on_white:    Cyan.bold().bg(White);             "hi" => "\x1B[1;47;36mhi\x1B[0m");
-    test!(cyan_ul_on_white:      Cyan.underline().bg(White);        "hi" => "\x1B[4;47;36mhi\x1B[0m");
-    test!(cyan_bold_ul_on_white: Cyan.bold().underline().bg(White); "hi" => "\x1B[1;4;47;36mhi\x1B[0m");
-    test!(cyan_ul_bold_on_white: Cyan.underline().bold().bg(White); "hi" => "\x1B[1;4;47;36mhi\x1B[0m");
+    test!(purple_on_white:       Purple.with_background(White);                  "hi" => "\x1B[47;35mhi\x1B[0m");
+    test!(purple_on_white_2:     Purple.foreground().background(White);         "hi" => "\x1B[47;35mhi\x1B[0m");
+    test!(yellow_on_blue:        Style::new().background(Blue).foreground(Yellow);  "hi" => "\x1B[44;33mhi\x1B[0m");
+    test!(magenta_on_white:      Magenta.with_background(White);                  "hi" => "\x1B[47;35mhi\x1B[0m");
+    test!(magenta_on_white_2:    Magenta.foreground().background(White);         "hi" => "\x1B[47;35mhi\x1B[0m");
+    test!(yellow_on_blue_2:      Cyan.with_background(Blue).foreground(Yellow);          "hi" => "\x1B[44;33mhi\x1B[0m");
+    test!(yellow_on_blue_reset:  Cyan.with_background(Blue).prefix_with_reset().foreground(Yellow); "hi" => "\x1B[0m\x1B[44;33mhi\x1B[0m");
+    test!(yellow_on_blue_reset_2: Cyan.with_background(Blue).foreground(Yellow).prefix_with_reset(); "hi" => "\x1B[0m\x1B[44;33mhi\x1B[0m");
+    test!(cyan_bold_on_white:    Cyan.bold().background(White);             "hi" => "\x1B[1;47;36mhi\x1B[0m");
+    test!(cyan_ul_on_white:      Cyan.underline().background(White);        "hi" => "\x1B[4;47;36mhi\x1B[0m");
+    test!(cyan_bold_ul_on_white: Cyan.bold().underline().background(White); "hi" => "\x1B[1;4;47;36mhi\x1B[0m");
+    test!(cyan_ul_bold_on_white: Cyan.underline().bold().background(White); "hi" => "\x1B[1;4;47;36mhi\x1B[0m");
     test!(fixed:                 Fixed(100);                        "hi" => "\x1B[38;5;100mhi\x1B[0m");
-    test!(fixed_on_purple:       Fixed(100).bg(Purple);             "hi" => "\x1B[45;38;5;100mhi\x1B[0m");
-    test!(fixed_on_fixed:        Fixed(100).bg(Fixed(200));         "hi" => "\x1B[48;5;200;38;5;100mhi\x1B[0m");
+    test!(fixed_on_purple:       Fixed(100).with_background(Purple);             "hi" => "\x1B[45;38;5;100mhi\x1B[0m");
+    test!(fixed_on_fixed:        Fixed(100).with_background(Fixed(200));         "hi" => "\x1B[48;5;200;38;5;100mhi\x1B[0m");
     test!(rgb:                   Rgb(70,130,180);                   "hi" => "\x1B[38;2;70;130;180mhi\x1B[0m");
-    test!(rgb_on_blue:           Rgb(70,130,180).bg(Blue);          "hi" => "\x1B[44;38;2;70;130;180mhi\x1B[0m");
-    test!(blue_on_rgb:           Blue.bg(Rgb(70,130,180));          "hi" => "\x1B[48;2;70;130;180;34mhi\x1B[0m");
-    test!(rgb_on_rgb:            Rgb(70,130,180).bg(Rgb(5,10,15));  "hi" => "\x1B[48;2;5;10;15;38;2;70;130;180mhi\x1B[0m");
+    test!(rgb_on_blue:           Rgb(70,130,180).with_background(Blue);          "hi" => "\x1B[44;38;2;70;130;180mhi\x1B[0m");
+    test!(blue_on_rgb:           Blue.with_background(Rgb(70,130,180));          "hi" => "\x1B[48;2;70;130;180;34mhi\x1B[0m");
+    test!(rgb_on_rgb:            Rgb(70,130,180).with_background(Rgb(5,10,15));  "hi" => "\x1B[48;2;5;10;15;38;2;70;130;180mhi\x1B[0m");
     test!(bold:                  Style::new().bold();               "hi" => "\x1B[1mhi\x1B[0m");
     test!(bold_with_reset:       Style::new().prefix_with_reset().bold(); "hi" => "\x1B[0m\x1B[1mhi\x1B[0m");
     test!(bold_with_reset_2:     Style::new().bold().prefix_with_reset(); "hi" => "\x1B[0m\x1B[1mhi\x1B[0m");
@@ -435,7 +435,7 @@ mod test {
     test!(reverse:               Style::new().reverse();            "hi" => "\x1B[7mhi\x1B[0m");
     test!(hidden:                Style::new().hidden();             "hi" => "\x1B[8mhi\x1B[0m");
     test!(stricken:              Style::new().strikethrough();      "hi" => "\x1B[9mhi\x1B[0m");
-    test!(lr_on_lr:              LightRed.bg(LightRed);             "hi" => "\x1B[101;91mhi\x1B[0m");
+    test!(lr_on_lr:              LightRed.with_background(LightRed);             "hi" => "\x1B[101;91mhi\x1B[0m");
 
     #[test]
     fn test_infix() {
@@ -444,11 +444,17 @@ mod test {
             "\x1B[0m"
         );
         assert_eq!(
-            White.dimmed().infix(White.normal()).to_string(),
+            White.dimmed().infix(White.foreground()).to_string(),
             "\x1B[0m\x1B[37m"
         );
-        assert_eq!(White.normal().infix(White.bold()).to_string(), "\x1B[1m");
-        assert_eq!(White.normal().infix(Blue.normal()).to_string(), "\x1B[34m");
+        assert_eq!(
+            White.foreground().infix(White.bold()).to_string(),
+            "\x1B[1m"
+        );
+        assert_eq!(
+            White.foreground().infix(Blue.foreground()).to_string(),
+            "\x1B[34m"
+        );
         assert_eq!(Blue.bold().infix(Blue.bold()).to_string(), "");
     }
 }
@@ -469,12 +475,12 @@ mod gnu_legacy_test {
     test!(green_bold_ul_2:       Green.underline().bold();          "hi" => "\x1B[01;04;32mhi\x1B[0m");
     test!(purple_on_white:       Purple.on(White);                  "hi" => "\x1B[47;35mhi\x1B[0m");
     test!(purple_on_white_2:     Purple.normal().on(White);         "hi" => "\x1B[47;35mhi\x1B[0m");
-    test!(yellow_on_blue:        Style::new().on(Blue).fg(Yellow);  "hi" => "\x1B[44;33mhi\x1B[0m");
-    test!(yellow_on_blue_reset:  Cyan.on(Blue).reset_before_style().fg(Yellow); "hi" => "\x1B[0m\x1B[44;33mhi\x1B[0m");
-    test!(yellow_on_blue_reset_2: Cyan.on(Blue).fg(Yellow).reset_before_style(); "hi" => "\x1B[0m\x1B[44;33mhi\x1B[0m");
+    test!(yellow_on_blue:        Style::new().on(Blue).foreground(Yellow);  "hi" => "\x1B[44;33mhi\x1B[0m");
+    test!(yellow_on_blue_reset:  Cyan.on(Blue).reset_before_style().foreground(Yellow); "hi" => "\x1B[0m\x1B[44;33mhi\x1B[0m");
+    test!(yellow_on_blue_reset_2: Cyan.on(Blue).foreground(Yellow).reset_before_style(); "hi" => "\x1B[0m\x1B[44;33mhi\x1B[0m");
     test!(magenta_on_white:      Magenta.on(White);                  "hi" => "\x1B[47;35mhi\x1B[0m");
     test!(magenta_on_white_2:    Magenta.normal().on(White);         "hi" => "\x1B[47;35mhi\x1B[0m");
-    test!(yellow_on_blue_2:      Cyan.on(Blue).fg(Yellow);          "hi" => "\x1B[44;33mhi\x1B[0m");
+    test!(yellow_on_blue_2:      Cyan.on(Blue).foreground(Yellow);          "hi" => "\x1B[44;33mhi\x1B[0m");
     test!(cyan_bold_on_white:    Cyan.bold().on(White);             "hi" => "\x1B[01;47;36mhi\x1B[0m");
     test!(cyan_ul_on_white:      Cyan.underline().on(White);        "hi" => "\x1B[04;47;36mhi\x1B[0m");
     test!(cyan_bold_ul_on_white: Cyan.bold().underline().on(White); "hi" => "\x1B[01;04;47;36mhi\x1B[0m");

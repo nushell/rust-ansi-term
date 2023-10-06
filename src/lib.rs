@@ -76,14 +76,14 @@
 //!
 //! In some cases, you may find it easier to change the foreground on an
 //! existing `Style` rather than starting from the appropriate `Color`.
-//! You can do this using the [`fg`] method:
+//! You can do this using the [`foreground`] method:
 //!
 //! ```
 //! use nu_ansi_term::Style;
 //! use nu_ansi_term::Color::{Blue, Cyan, Yellow};
 //!
-//! println!("Yellow on blue: {}", Style::new().on(Blue).fg(Yellow).paint("yow!"));
-//! println!("Also yellow on blue: {}", Cyan.on(Blue).fg(Yellow).paint("zow!"));
+//! println!("Yellow on blue: {}", Style::new().on(Blue).foreground(Yellow).paint("yow!"));
+//! println!("Also yellow on blue: {}", Cyan.on(Blue).foreground(Yellow).paint("zow!"));
 //! ```
 //!
 //! You can turn a `Color` into a `Style` with the [`normal`] method.
@@ -226,7 +226,7 @@
 //! [`reverse`]: struct.Style.html#method.reverse
 //! [`hidden`]: struct.Style.html#method.hidden
 //! [`strikethrough`]: struct.Style.html#method.strikethrough
-//! [`fg`]: struct.Style.html#method.fg
+//! [`foreground`]: struct.Style.html#method.foreground
 //! [`on`]: struct.Style.html#method.on
 
 #![crate_name = "nu_ansi_term"]

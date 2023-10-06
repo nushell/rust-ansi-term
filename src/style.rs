@@ -1,3 +1,93 @@
+use bitflags::bitflags;
+use paste::paste;
+
+use crate::difference::StyleDelta;
+
+bitflags! {
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    pub struct StyleFlags: u16 {
+        /// Whether this style is always displayed starting with a reset code to clear any remaining style artifacts
+        const PREFIX_WITH_RESET = 1 << 0;
+        /// The style's foreground color; if it has one.
+        const FOREGROUND = 1 << 1;
+        /// The style's background color; if it has one.
+        const BACKGROUND = 1 << 2;
+        /// Whether this style is bold.
+        const BOLD = 1 << 3;
+        /// Whether this style is dimmed.
+        const DIMMED = 1 << 4;
+        /// Whether this style is italic.
+        const ITALIC = 1 << 5;
+        /// Whether this style is underlined.
+        const UNDERLINE = 1 << 6;
+        /// Whether this style is blinking.
+        const BLINK = 1 << 7;
+        /// Whether this style has reverse colors.
+        const REVERSE = 1 << 8;
+        /// Whether this style is hidden.
+        const HIDDEN = 1 << 9;
+        /// Whether this style is struckthrough.
+        const STRIKETHROUGH = 1 << 10;
+    }
+}
+
+impl StyleFlags {
+    /// Return true if this `Style` requires no escape codes to be represented.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use nu_ansi_term::Style;
+    ///
+    /// assert_eq!(true,  Style::default().status.is_plain());
+    /// assert_eq!(false, Style::default().bold().status.is_plain());
+    /// ```
+    #[inline]
+    pub const fn is_plain(self) -> bool {
+        self.is_empty()
+    }
+
+    #[inline]
+    pub fn has_color(self) -> bool {
+        self.contains(StyleFlags::FOREGROUND | StyleFlags::BACKGROUND)
+    }
+
+    /// Get the flags which are unrelated to color or prefixing with a reset,
+    /// and are only involved in formatting the output in some manner.
+    #[inline]
+    pub fn format_flags(self) -> StyleFlags {
+        self.intersection(
+            (StyleFlags::FOREGROUND | StyleFlags::BACKGROUND | StyleFlags::PREFIX_WITH_RESET)
+                .complement(),
+        )
+    }
+
+    /// Check if the style contains some property which cannot be inverted, and
+    /// thus must be followed by a reset flag in order turn off its effect.
+    #[inline]
+    pub fn has_formatting(self) -> bool {
+        !self.format_flags().is_empty()
+    }
+
+    /// Check which properties were turned on in the next style.
+    #[inline]
+    pub const fn which_turned_on_from(self, other: StyleFlags) -> StyleFlags {
+        other.difference(self)
+    }
+
+    /// Check which properties were turned off in the next style.
+    #[inline]
+    pub const fn which_turned_off_in(self, other: StyleFlags) -> StyleFlags {
+        other.which_turned_on_from(self)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct Coloring {
+    foreground: Option<Color>,
+    background: Option<Color>,
+}
+
 /// A style is a collection of properties that can format a string
 /// using ANSI escape codes.
 ///
@@ -9,44 +99,120 @@
 /// let style = Style::new().bold().on(Color::Black);
 /// println!("{}", style.paint("Bold on black"));
 /// ```
-#[derive(Eq, PartialEq, Clone, Copy)]
+#[derive(Clone, Copy)]
 #[cfg_attr(
     feature = "derive_serde_style",
     derive(serde::Deserialize, serde::Serialize)
 )]
 pub struct Style {
-    /// The style's foreground color, if it has one.
-    pub foreground: Option<Color>,
+    pub status: StyleFlags,
+    pub coloring: Coloring,
+}
 
-    /// The style's background color, if it has one.
-    pub background: Option<Color>,
+impl PartialEq for Style {
+    fn eq(&self, other: &Self) -> bool {
+        self.status.symmetric_difference(other.status).is_empty()
+            && self.is_foreground() == other.is_foreground()
+            && self.is_background() == other.is_background()
+    }
+}
 
-    /// Whether this style is bold.
-    pub is_bold: bool,
+impl Eq for Style {}
 
-    /// Whether this style is dimmed.
-    pub is_dimmed: bool,
+impl Default for Style {
+    /// Returns a style with *no* properties set. Formatting text using this
+    /// style returns the exact same text.
+    ///
+    /// ```
+    /// use nu_ansi_term::Style;
+    /// assert_eq!(None,  Style::default().foreground);
+    /// assert_eq!(None,  Style::default().background);
+    /// assert_eq!(false, Style::default().is_bold);
+    /// assert_eq!("txt", Style::default().paint("txt").to_string());
+    /// ```
+    fn default() -> Self {
+        Style {
+            status: StyleFlags::empty(),
+            coloring: Coloring::default(),
+        }
+    }
+}
 
-    /// Whether this style is italic.
-    pub is_italic: bool,
+macro_rules! style_methods_for_flag {
+    (@color $flag:ident) => {
+        paste! {
+            #[doc = r"Returns a copy of this style with the [`StyleFlags::`" $flag r"`] property set, and the corresponding color value set to the provided color."]
+            #[doc = r""]
+            #[doc = r"# Examples"]
+            #[doc = r""]
+            #[doc = r"```"]
+            #[doc = r"use nu_ansi_term::Style"]
+            #[doc = r""]
+            #[doc = r"let style = Style::new()." [< $flag:lower >] r"(Color::Red);"]
+            #[doc = r#"println!("{}", style.paint("hey"));"# ]
+            #[doc = r"```"]
+            pub fn [< $flag:lower >](self, color: Color) -> Style {
+                self.set(StyleFlags::$flag, Coloring {
+                    [< $flag:lower >] : color.into(),
+                    ..Default::default()
+                })
+            }
 
-    /// Whether this style is underlined.
-    pub is_underline: bool,
+            #[doc = r"Checks if the [`StyleFlags::`" $flag r"`] property is set, and returns the corresponding color if so."]
+            pub const fn [< is_ $flag:lower >](self) -> Option<Color> {
+                if self.status.contains(StyleFlags::$flag) {
+                    self.coloring.[< $flag:lower >]
+                } else {
+                    None
+                }
+            }
 
-    /// Whether this style is blinking.
-    pub is_blink: bool,
+            #[doc = r"Returns a copy of this style with the [`StyleFlags::`" $flag r"`] property and corresponding color value unset."]
+            pub fn [< unset_ $flag:lower >](self) -> Style {
+                self.unset(StyleFlags::$flag)
+            }
+        }
+    };
+    (FOREGROUND) => {
+        style_methods_for_flag!(@color FOREGROUND);
+    };
+    (BACKGROUND) => {
+        style_methods_for_flag!(@color BACKGROUND);
+    };
+    // A non-color related flag.
+    ($flag:ident) => {
+        paste! {
+            #[doc = r"Returns a copy of this style with the [`StyleFlags::`" $flag r"`] property set"]
+            #[doc = r""]
+            #[doc = r"# Examples"]
+            #[doc = r""]
+            #[doc = r"```"]
+            #[doc = r"use nu_ansi_term::Style"]
+            #[doc = r""]
+            #[doc = r"let style = Style::new()." [< $flag:lower >] r"();"]
+            #[doc = r#"println!("{}", style.paint("hey"));"# ]
+            #[doc = r"```"]
+            pub fn [< $flag:lower >](self) -> Style {
+                self.set(StyleFlags::$flag, Coloring::default())
+            }
 
-    /// Whether this style has reverse colors.
-    pub is_reverse: bool,
+            #[doc = r"Checks if the [`StyleFlags::`" $flag r"`] property is set."]
+            pub const fn [< is_ $flag:lower >](self) -> bool {
+                self.status.contains(StyleFlags::$flag)
+            }
 
-    /// Whether this style is hidden.
-    pub is_hidden: bool,
+            #[doc = r"Returns a copy of this style with the [`StyleFlags::`" $flag r"`] property unset."]
+            pub fn [< unset_ $flag:lower >](self) -> Style {
+                self.unset(StyleFlags::$flag)
+            }
+        }
+    }
+}
 
-    /// Whether this style is struckthrough.
-    pub is_strikethrough: bool,
-
-    /// Wether this style is always displayed starting with a reset code to clear any remaining style artifacts
-    pub prefix_with_reset: bool,
+macro_rules! style_methods {
+    ($($flag:ident),*) => {
+        $(style_methods_for_flag!($flag);)*
+    };
 }
 
 impl Style {
@@ -64,191 +230,45 @@ impl Style {
         Style::default()
     }
 
-    /// Returns a [`Style`] with the `Style.prefix_with_reset` property set.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use nu_ansi_term::Style;
-    ///
-    /// let style = Style::new().reset_before_style();
-    /// println!("{}", style.paint("hey"));
-    /// ```
-    pub const fn prefix_with_reset(&self) -> Style {
-        Style {
-            prefix_with_reset: true,
-            ..*self
+    #[inline]
+    pub const fn set(self, status: StyleFlags, coloring: Coloring) -> Style {
+        let mut r = self;
+        r.status = status;
+        if status.contains(StyleFlags::FOREGROUND) {
+            r.coloring.foreground = coloring.foreground;
         }
+        if status.contains(StyleFlags::BACKGROUND) {
+            r.coloring.background = coloring.background;
+        }
+        r
     }
 
-    /// Returns a `Style` with the bold property set.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use nu_ansi_term::Style;
-    ///
-    /// let style = Style::new().bold();
-    /// println!("{}", style.paint("hey"));
-    /// ```
-    pub const fn bold(&self) -> Style {
-        Style {
-            is_bold: true,
-            ..*self
+    #[inline]
+    pub fn unset(self, status: StyleFlags) -> Style {
+        let mut r = self;
+        r.status.remove(status);
+        if status.contains(StyleFlags::FOREGROUND) {
+            r.coloring.foreground.take();
         }
+        if status.contains(StyleFlags::BACKGROUND) {
+            r.coloring.background.take();
+        }
+        r
     }
 
-    /// Returns a `Style` with the dimmed property set.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use nu_ansi_term::Style;
-    ///
-    /// let style = Style::new().dimmed();
-    /// println!("{}", style.paint("sup"));
-    /// ```
-    pub const fn dimmed(&self) -> Style {
-        Style {
-            is_dimmed: true,
-            ..*self
-        }
-    }
-
-    /// Returns a `Style` with the italic property set.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use nu_ansi_term::Style;
-    ///
-    /// let style = Style::new().italic();
-    /// println!("{}", style.paint("greetings"));
-    /// ```
-    pub const fn italic(&self) -> Style {
-        Style {
-            is_italic: true,
-            ..*self
-        }
-    }
-
-    /// Returns a `Style` with the underline property set.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use nu_ansi_term::Style;
-    ///
-    /// let style = Style::new().underline();
-    /// println!("{}", style.paint("salutations"));
-    /// ```
-    pub const fn underline(&self) -> Style {
-        Style {
-            is_underline: true,
-            ..*self
-        }
-    }
-
-    /// Returns a `Style` with the blink property set.
-    /// # Examples
-    ///
-    /// ```
-    /// use nu_ansi_term::Style;
-    ///
-    /// let style = Style::new().blink();
-    /// println!("{}", style.paint("wazzup"));
-    /// ```
-    pub const fn blink(&self) -> Style {
-        Style {
-            is_blink: true,
-            ..*self
-        }
-    }
-
-    /// Returns a `Style` with the reverse property set.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use nu_ansi_term::Style;
-    ///
-    /// let style = Style::new().reverse();
-    /// println!("{}", style.paint("aloha"));
-    /// ```
-    pub const fn reverse(&self) -> Style {
-        Style {
-            is_reverse: true,
-            ..*self
-        }
-    }
-
-    /// Returns a `Style` with the hidden property set.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use nu_ansi_term::Style;
-    ///
-    /// let style = Style::new().hidden();
-    /// println!("{}", style.paint("ahoy"));
-    /// ```
-    pub const fn hidden(&self) -> Style {
-        Style {
-            is_hidden: true,
-            ..*self
-        }
-    }
-
-    /// Returns a `Style` with the strikethrough property set.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use nu_ansi_term::Style;
-    ///
-    /// let style = Style::new().strikethrough();
-    /// println!("{}", style.paint("yo"));
-    /// ```
-    pub const fn strikethrough(&self) -> Style {
-        Style {
-            is_strikethrough: true,
-            ..*self
-        }
-    }
-
-    /// Returns a `Style` with the foreground color property set.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use nu_ansi_term::{Style, Color};
-    ///
-    /// let style = Style::new().fg(Color::Yellow);
-    /// println!("{}", style.paint("hi"));
-    /// ```
-    pub const fn fg(&self, foreground: Color) -> Style {
-        Style {
-            foreground: Some(foreground),
-            ..*self
-        }
-    }
-
-    /// Returns a `Style` with the background color property set.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use nu_ansi_term::{Style, Color};
-    ///
-    /// let style = Style::new().on(Color::Blue);
-    /// println!("{}", style.paint("eyyyy"));
-    /// ```
-    pub const fn bg(&self, background: Color) -> Style {
-        Style {
-            background: Some(background),
-            ..*self
-        }
-    }
+    style_methods!(
+        PREFIX_WITH_RESET,
+        BOLD,
+        DIMMED,
+        ITALIC,
+        UNDERLINE,
+        BLINK,
+        REVERSE,
+        HIDDEN,
+        STRIKETHROUGH,
+        FOREGROUND,
+        BACKGROUND
+    );
 
     /// Return true if this `Style` requires no escape codes to be represented.
     ///
@@ -261,35 +281,53 @@ impl Style {
     /// assert_eq!(false, Style::default().bold().is_plain());
     /// ```
     #[inline]
-    pub fn is_plain(self) -> bool {
-        self == Style::default()
+    pub const fn is_plain(self) -> bool {
+        self.status.is_plain()
     }
-}
 
-impl Default for Style {
-    /// Returns a style with *no* properties set. Formatting text using this
-    /// style returns the exact same text.
-    ///
-    /// ```
-    /// use nu_ansi_term::Style;
-    /// assert_eq!(None,  Style::default().foreground);
-    /// assert_eq!(None,  Style::default().background);
-    /// assert_eq!(false, Style::default().is_bold);
-    /// assert_eq!("txt", Style::default().paint("txt").to_string());
-    /// ```
-    fn default() -> Style {
-        Style {
-            foreground: None,
-            background: None,
-            is_bold: false,
-            is_dimmed: false,
-            is_italic: false,
-            is_underline: false,
-            is_blink: false,
-            is_reverse: false,
-            is_hidden: false,
-            is_strikethrough: false,
-            prefix_with_reset: false,
+    #[inline]
+    pub fn has_color(self) -> bool {
+        self.status.has_color()
+    }
+
+    /// Get the flags which are unrelated to color or prefixing with a reset,
+    /// and are only involved in formatting the output in some manner.
+    #[inline]
+    pub fn format_flags(self) -> StyleFlags {
+        self.status.format_flags()
+    }
+
+    /// Check if the style contains some property which cannot be inverted, and
+    /// thus must be followed by a reset flag in order turn off its effect.
+    #[inline]
+    pub fn has_non_invertible(self) -> bool {
+        self.status.has_formatting()
+    }
+
+    /// Return which properties were turned on in this style, compared to the other.
+    #[inline]
+    pub const fn turned_on_from(&self, other: Style) -> StyleFlags {
+        other.status.difference(other.status)
+    }
+
+    /// Check which properties were turned off in the next style.
+    #[inline]
+    pub const fn turned_off_in(self, other: Style) -> StyleFlags {
+        other.status.which_turned_on_from(self.status)
+    }
+
+    pub fn compute_delta(self, next: Style) -> StyleDelta {
+        if self == next {
+            StyleDelta::Empty
+        } else if next.is_plain() && !self.is_plain() {
+            StyleDelta::PrefixUsing(next.prefix_with_reset())
+        } else {
+            let which_turned_off = self.turned_off_in(next);
+            if which_turned_off.has_formatting() || which_turned_off.has_color() {
+                StyleDelta::PrefixUsing(next.prefix_with_reset())
+            } else {
+                StyleDelta::PrefixUsing(next.set(next.turned_on_from(self), next.coloring))
+            }
         }
     }
 }
@@ -393,6 +431,28 @@ pub enum Color {
     Default,
 }
 
+macro_rules! color_methods {
+    ($($flag:ident),*) => {
+        paste! {
+            $(
+                #[doc = r"Returns a `Style` with the foreground color set to this color, and the `" $flag r"` property turned on."]
+                #[doc = r""]
+                #[doc = r"# Examples"]
+                #[doc = r""]
+                #[doc = r"```"]
+                #[doc = r"use nu_ansi_term::Color;"]
+                #[doc = r""]
+                #[doc = r"let style = Color::Red." $flag:lower r"();"]
+                #[doc = r#"println!("{}", style.paint("hi"));"# ]
+                #[doc = r"```"]
+                pub fn [< $flag:lower >](self) -> Style {
+                    self.foreground().[< $flag:lower >]()
+                }
+            )*
+        }
+    };
+}
+
 impl Color {
     /// Returns a `Style` with the foreground color set to this color.
     ///
@@ -401,185 +461,11 @@ impl Color {
     /// ```
     /// use nu_ansi_term::Color;
     ///
-    /// let style = Color::Red.normal();
-    /// println!("{}", style.paint("hi"));
+    /// let style = Color::Rgb(31, 31, 31).foreground();
+    /// println!("{}", style.paint("eyyyy"));
     /// ```
-    pub fn normal(self) -> Style {
-        Style {
-            foreground: Some(self),
-            ..Style::default()
-        }
-    }
-
-    /// Returns a `Style` with the foreground color set to this color and the
-    /// bold property set.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use nu_ansi_term::Color;
-    ///
-    /// let style = Color::Green.bold();
-    /// println!("{}", style.paint("hey"));
-    /// ```
-    pub fn bold(self) -> Style {
-        Style {
-            foreground: Some(self),
-            is_bold: true,
-            ..Style::default()
-        }
-    }
-
-    /// Returns a `Style` with the foreground color set to this color and the
-    /// dimmed property set.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use nu_ansi_term::Color;
-    ///
-    /// let style = Color::Yellow.dimmed();
-    /// println!("{}", style.paint("sup"));
-    /// ```
-    pub fn dimmed(self) -> Style {
-        Style {
-            foreground: Some(self),
-            is_dimmed: true,
-            ..Style::default()
-        }
-    }
-
-    /// Returns a `Style` with the foreground color set to this color and the
-    /// italic property set.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use nu_ansi_term::Color;
-    ///
-    /// let style = Color::Blue.italic();
-    /// println!("{}", style.paint("greetings"));
-    /// ```
-    pub fn italic(self) -> Style {
-        Style {
-            foreground: Some(self),
-            is_italic: true,
-            ..Style::default()
-        }
-    }
-
-    /// Returns a `Style` with the foreground color set to this color and the
-    /// underline property set.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use nu_ansi_term::Color;
-    ///
-    /// let style = Color::Purple.underline();
-    /// println!("{}", style.paint("salutations"));
-    /// ```
-    pub fn underline(self) -> Style {
-        Style {
-            foreground: Some(self),
-            is_underline: true,
-            ..Style::default()
-        }
-    }
-
-    /// Returns a `Style` with the foreground color set to this color and the
-    /// blink property set.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use nu_ansi_term::Color;
-    ///
-    /// let style = Color::Cyan.blink();
-    /// println!("{}", style.paint("wazzup"));
-    /// ```
-    pub fn blink(self) -> Style {
-        Style {
-            foreground: Some(self),
-            is_blink: true,
-            ..Style::default()
-        }
-    }
-
-    /// Returns a `Style` with the foreground color set to this color and the
-    /// reverse property set.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use nu_ansi_term::Color;
-    ///
-    /// let style = Color::Black.reverse();
-    /// println!("{}", style.paint("aloha"));
-    /// ```
-    pub fn reverse(self) -> Style {
-        Style {
-            foreground: Some(self),
-            is_reverse: true,
-            ..Style::default()
-        }
-    }
-
-    /// Returns a `Style` with the foreground color set to this color and the
-    /// hidden property set.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use nu_ansi_term::Color;
-    ///
-    /// let style = Color::White.hidden();
-    /// println!("{}", style.paint("ahoy"));
-    /// ```
-    pub fn hidden(self) -> Style {
-        Style {
-            foreground: Some(self),
-            is_hidden: true,
-            ..Style::default()
-        }
-    }
-
-    /// Returns a `Style` with the foreground color set to this color and the
-    /// strikethrough property set.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use nu_ansi_term::Color;
-    ///
-    /// let style = Color::Fixed(244).strikethrough();
-    /// println!("{}", style.paint("yo"));
-    /// ```
-    pub fn strikethrough(self) -> Style {
-        Style {
-            foreground: Some(self),
-            is_strikethrough: true,
-            ..Style::default()
-        }
-    }
-
-    /// Returns a `Style` thats resets all styling before applying
-    /// the foreground color set to this color.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use nu_ansi_term::Color;
-    ///
-    /// let style = Color::Fixed(244).reset_before_style();
-    /// println!("{}", style.paint("yo"));
-    /// ```
-    pub fn reset_before_style(self) -> Style {
-        Style {
-            foreground: Some(self),
-            prefix_with_reset: true,
-            ..Style::default()
-        }
+    pub fn foreground(self) -> Style {
+        Style::new().foreground(self)
     }
 
     /// Returns a `Style` with the foreground color set to this color and the
@@ -590,16 +476,23 @@ impl Color {
     /// ```
     /// use nu_ansi_term::Color;
     ///
-    /// let style = Color::Rgb(31, 31, 31).on(Color::White);
+    /// let style = Color::Rgb(31, 31, 31).with_background(Color::White);
     /// println!("{}", style.paint("eyyyy"));
     /// ```
-    pub fn bg(self, background: Color) -> Style {
-        Style {
-            foreground: Some(self),
-            background: Some(background),
-            ..Style::default()
-        }
+    pub fn with_background(self, background: Color) -> Style {
+        Style::new().foreground(self).background(background)
     }
+
+    color_methods!(
+        BOLD,
+        DIMMED,
+        ITALIC,
+        UNDERLINE,
+        BLINK,
+        REVERSE,
+        HIDDEN,
+        STRIKETHROUGH
+    );
 }
 
 impl From<Color> for Style {
@@ -608,13 +501,13 @@ impl From<Color> for Style {
     ///
     /// ```
     /// use nu_ansi_term::{Style, Color};
-    /// let green_foreground = Style::default().fg(Color::Green);
+    /// let green_foreground = Style::default().foreground(Color::Green);
     /// assert_eq!(green_foreground, Color::Green.normal());
     /// assert_eq!(green_foreground, Color::Green.into());
     /// assert_eq!(green_foreground, Style::from(Color::Green));
     /// ```
     fn from(color: Color) -> Style {
-        color.normal()
+        color.foreground()
     }
 }
 

@@ -21,6 +21,8 @@ derive_serde_style = ["serde"]
 gnu_legacy = []
 
 [dependencies]
+bitflags = "2.4.0"
+paste = "1.0.14"
 serde = { version="1.0.152", features=["derive"], optional=true }
 
 [target.'cfg(windows)'.dependencies.windows]

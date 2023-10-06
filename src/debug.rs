@@ -8,22 +8,22 @@ use std::fmt;
 /// `format!("{:#?}")`.
 ///
 ///     use nu_ansi_term::Color::{Red, Blue};
-///     assert_eq!("Style { fg(Red), on(Blue), bold, italic }",
-///                format!("{:?}", Red.on(Blue).bold().italic()));
+///     assert_eq!("Style { foreground(Red), background(Blue), bold, italic }",
+///                format!("{:?}", Red.background(Blue).bold().italic()));
 impl fmt::Debug for Style {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         if fmt.alternate() {
             fmt.debug_struct("Style")
-                .field("foreground", &self.foreground)
-                .field("background", &self.background)
-                .field("blink", &self.is_blink)
-                .field("bold", &self.is_bold)
-                .field("dimmed", &self.is_dimmed)
-                .field("hidden", &self.is_hidden)
-                .field("italic", &self.is_italic)
-                .field("reverse", &self.is_reverse)
-                .field("strikethrough", &self.is_strikethrough)
-                .field("underline", &self.is_underline)
+                .field("foreground", &self.is_foreground())
+                .field("background", &self.is_background())
+                .field("blink", &self.is_blink())
+                .field("bold", &self.is_bold())
+                .field("dimmed", &self.is_dimmed())
+                .field("hidden", &self.is_hidden())
+                .field("italic", &self.is_italic())
+                .field("reverse", &self.is_reverse())
+                .field("strikethrough", &self.is_strikethrough())
+                .field("underline", &self.is_underline())
                 .finish()
         } else if self.is_plain() {
             fmt.write_str("Style {}")
@@ -32,20 +32,20 @@ impl fmt::Debug for Style {
 
             let mut written_anything = false;
 
-            if let Some(fg) = self.foreground {
+            if let Some(foreground) = self.is_foreground() {
                 if written_anything {
                     fmt.write_str(", ")?
                 }
                 written_anything = true;
-                write!(fmt, "fg({:?})", fg)?
+                write!(fmt, "foreground({:?})", foreground)?
             }
 
-            if let Some(bg) = self.background {
+            if let Some(background) = self.is_background() {
                 if written_anything {
                     fmt.write_str(", ")?
                 }
                 written_anything = true;
-                write!(fmt, "on({:?})", bg)?
+                write!(fmt, "background({:?})", background)?
             }
 
             {
@@ -57,28 +57,28 @@ impl fmt::Debug for Style {
                     fmt.write_str(name)
                 };
 
-                if self.is_blink {
+                if self.is_blink() {
                     write_flag("blink")?
                 }
-                if self.is_bold {
+                if self.is_bold() {
                     write_flag("bold")?
                 }
-                if self.is_dimmed {
+                if self.is_dimmed() {
                     write_flag("dimmed")?
                 }
-                if self.is_hidden {
+                if self.is_hidden() {
                     write_flag("hidden")?
                 }
-                if self.is_italic {
+                if self.is_italic() {
                     write_flag("italic")?
                 }
-                if self.is_reverse {
+                if self.is_reverse() {
                     write_flag("reverse")?
                 }
-                if self.is_strikethrough {
+                if self.is_strikethrough() {
                     write_flag("strikethrough")?
                 }
-                if self.is_underline {
+                if self.is_underline() {
                     write_flag("underline")?
                 }
             }
@@ -107,16 +107,16 @@ mod test {
     test!(italic:  Style::new().italic()         => "Style { italic }");
     test!(both:    Style::new().bold().italic()  => "Style { bold, italic }");
 
-    test!(red:     Red.normal()                     => "Style { fg(Red) }");
-    test!(redblue: Red.normal().bg(Rgb(3, 2, 4))    => "Style { fg(Red), on(Rgb(3, 2, 4)) }");
+    test!(red:     Red.foreground()                     => "Style { foreground(Red) }");
+    test!(redblue: Red.foreground().background(Rgb(3, 2, 4))    => "Style { foreground(Red), background(Rgb(3, 2, 4)) }");
 
     test!(everything:
-            Red.bg(Blue).blink().bold().dimmed().hidden().italic().reverse().strikethrough().underline() =>
-            "Style { fg(Red), on(Blue), blink, bold, dimmed, hidden, italic, reverse, strikethrough, underline }");
+            Red.with_background(Blue).blink().bold().dimmed().hidden().italic().reverse().strikethrough().underline() =>
+            "Style { foreground(Red), background(Blue), blink, bold, dimmed, hidden, italic, reverse, strikethrough, underline }");
 
     #[test]
     fn long_and_detailed() {
-        let expected_debug = "Style { fg(Blue), bold }";
+        let expected_debug = "Style { foreground(Blue), bold }";
         let expected_pretty_repat = r"Style {
     foreground: Some(
         Blue,
