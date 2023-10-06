@@ -111,7 +111,7 @@ mod test {
     test!(redblue: Red.normal().bg(Rgb(3, 2, 4))    => "Style { fg(Red), on(Rgb(3, 2, 4)) }");
 
     test!(everything:
-            Red.on(Blue).blink().bold().dimmed().hidden().italic().reverse().strikethrough().underline() =>
+            Red.bg(Blue).blink().bold().dimmed().hidden().italic().reverse().strikethrough().underline() =>
             "Style { fg(Red), on(Blue), blink, bold, dimmed, hidden, italic, reverse, strikethrough, underline }");
 
     #[test]

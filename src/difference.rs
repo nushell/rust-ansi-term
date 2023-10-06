@@ -34,55 +34,47 @@ macro_rules! update_fields {
             $(($result.$field, no_change) = $self.$field.update($next.$field, no_change);)*
 
             if !no_change {
-                Some(UpdateResult::new($result))
+                UpdateCommand::Prefix(if $result.is_plain() {
+                    $result.prefix_with_reset()
+                } else {
+                    $result
+                })
             } else {
-                None
+                UpdateCommand::DoNothing
             }
         }
     };
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct UpdateResult {
-    pub style: Style,
-    pub is_plain_except_reset: bool,
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum UpdateCommand {
+    Prefix(Style),
+    #[default]
+    DoNothing,
 }
 
-impl UpdateResult {
-    pub fn new(style: Style) -> Self {
-        Self {
-            style,
-            is_plain_except_reset: Style {
-                prefix_with_reset: false,
-                ..style
-            } == Style::default(),
-        }
-    }
-}
-
-impl Style {
-    pub fn compute_update(self, next: Self) -> Option<UpdateResult> {
+impl UpdateCommand {
+    pub fn compare_styles(first: Style, mut next: Style) -> UpdateCommand {
         let mut result = if requires_reset!(
-            self,
+            first,
             next | is_bold,
             is_dimmed,
             is_italic,
             is_underline,
             is_blink,
             is_reverse,
-            is_strikethrough,
-            is_hidden
+            is_hidden,
+            is_strikethrough
         ) {
-            return Some(UpdateResult::new(next.prefix_with_reset()));
+            return UpdateCommand::Prefix(next.prefix_with_reset());
         } else {
-            let mut result = next;
-            result.prefix_with_reset = false;
-            result
+            next.prefix_with_reset = false;
+            next
         };
 
         update_fields!(
             result,
-            self,
+            first,
             next | foreground,
             background,
             is_bold,
@@ -92,13 +84,22 @@ impl Style {
             is_blink,
             is_reverse,
             is_hidden,
-            is_strikethrough
+            is_strikethrough,
+            prefix_with_reset
         )
+    }
+    pub fn update_relative(self, next: Style) -> UpdateCommand {
+        match self {
+            UpdateCommand::Prefix(first) => Self::compare_styles(first, next),
+            UpdateCommand::DoNothing => Self::compare_styles(Style::default(), next),
+        }
     }
 }
 
 #[cfg(test)]
 mod test {
+    use super::UpdateCommand;
+    use super::UpdateCommand::*;
     use crate::style::Color::*;
     use crate::style::Style;
 
@@ -110,27 +111,27 @@ mod test {
         ($name: ident: $first: expr; $next: expr => $result: expr) => {
             #[test]
             fn $name() {
-                assert_eq!($result, $first.compute_update($next).map(|r| r.style));
+                assert_eq!($result, UpdateCommand::compare_styles($first, $next));
             }
         };
     }
 
-    test!(nothing:    Green.normal(); Green.normal()  => None);
-    test!(bold:  Green.normal(); Green.bold()    => Some(style().bold()));
-    test!(unbold:  Green.bold();   Green.normal()  => Some(style().fg(Green).prefix_with_reset()));
-    test!(nothing2:   Green.bold();   Green.bold()    => None);
+    test!(nothing:    Green.normal(); Green.normal()  => DoNothing);
+    test!(bold:  Green.normal(); Green.bold()    => Prefix(style().bold()));
+    test!(unbold:  Green.bold();   Green.normal()  => Prefix(style().fg(Green).prefix_with_reset()));
+    test!(nothing2:   Green.bold();   Green.bold()    => DoNothing);
 
-    test!(color_change: Red.normal(); Blue.normal() => Some(style().fg(Blue)));
+    test!(color_change: Red.normal(); Blue.normal() => Prefix(style().fg(Blue)));
 
-    test!(addition_of_blink:          style(); style().blink()          => Some(style().blink()));
-    test!(addition_of_dimmed:         style(); style().dimmed()         => Some(style().dimmed()));
-    test!(addition_of_hidden:         style(); style().hidden()         => Some(style().hidden()));
-    test!(addition_of_reverse:        style(); style().reverse()        => Some(style().reverse()));
-    test!(addition_of_strikethrough:  style(); style().strikethrough()  => Some(style().strikethrough()));
+    test!(addition_of_blink:          style(); style().blink()          => Prefix(style().blink()));
+    test!(addition_of_dimmed:         style(); style().dimmed()         => Prefix(style().dimmed()));
+    test!(addition_of_hidden:         style(); style().hidden()         => Prefix(style().hidden()));
+    test!(addition_of_reverse:        style(); style().reverse()        => Prefix(style().reverse()));
+    test!(addition_of_strikethrough:  style(); style().strikethrough()  => Prefix(style().strikethrough()));
 
-    test!(removal_of_strikethrough:   style().strikethrough(); style()  => Some(style().prefix_with_reset()));
-    test!(removal_of_reverse:         style().reverse();       style()  => Some(style().prefix_with_reset()));
-    test!(removal_of_hidden:          style().hidden();        style()  => Some(style().prefix_with_reset()));
-    test!(removal_of_dimmed:          style().dimmed();        style()  => Some(style().prefix_with_reset()));
-    test!(removal_of_blink:           style().blink();         style()  => Some(style().prefix_with_reset()));
+    test!(removal_of_strikethrough:   style().strikethrough(); style()  => Prefix(style().prefix_with_reset()));
+    test!(removal_of_reverse:         style().reverse();       style()  => Prefix(style().prefix_with_reset()));
+    test!(removal_of_hidden:          style().hidden();        style()  => Prefix(style().prefix_with_reset()));
+    test!(removal_of_dimmed:          style().dimmed();        style()  => Prefix(style().prefix_with_reset()));
+    test!(removal_of_blink:           style().blink();         style()  => Prefix(style().prefix_with_reset()));
 }

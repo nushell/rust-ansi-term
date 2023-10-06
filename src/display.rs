@@ -1,4 +1,4 @@
-use crate::difference::UpdateResult;
+use crate::difference::UpdateCommand;
 use crate::style::{Color, Style};
 use crate::write::{AnyWrite, Content, StrLike, WriteResult};
 use crate::{coerce_fmt_write, write_any_fmt, write_any_str};
@@ -253,21 +253,22 @@ where
     }
 
     fn push_style(&mut self, next: Style, begins_at: usize) {
-        if let Some(update) = self
+        let instructions = self
             .style_updates
             .last()
-            .and_then(|inc_style| inc_style.style.compute_update(next))
-        {
-            let UpdateResult {
-                style,
-                is_plain_except_reset,
-            } = update;
-            self.style_updates.push(StyleUpdate {
-                begins_at,
-                style,
-                is_plain_except_reset,
-            })
-        }
+            .map(|style_update| style_update.command.update_relative(next))
+            .unwrap_or_else(|| {
+                if next.is_plain() {
+                    UpdateCommand::DoNothing
+                } else {
+                    UpdateCommand::Prefix(next)
+                }
+            });
+
+        self.style_updates.push(StyleUpdate {
+            begins_at,
+            command: instructions,
+        })
     }
 
     #[inline]
@@ -285,7 +286,7 @@ where
         WriteIter {
             style_iter: StyleIter {
                 cursor: 0,
-                style_updates: &self.style_updates,
+                instructions: &self.style_updates,
                 next_update: None,
                 current: None,
             },
@@ -300,32 +301,31 @@ where
 
 pub struct StyleIter<'a> {
     cursor: usize,
-    style_updates: &'a Vec<StyleUpdate>,
+    instructions: &'a Vec<StyleUpdate>,
     next_update: Option<StyleUpdate>,
     current: Option<StyleUpdate>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct StyleUpdate {
-    style: Style,
-    is_plain_except_reset: bool,
+    command: UpdateCommand,
     begins_at: usize,
 }
 
-impl<'a> StyleCursor<'a> {
+impl<'a> StyleIter<'a> {
     fn get_next_update(&mut self) {
         self.cursor += 1;
-        self.next_update = self.style_updates.get(self.cursor).copied();
+        self.next_update = self.instructions.get(self.cursor).copied();
     }
 }
 
-impl<'b> Iterator for StyleCursor<'b> {
-    type Item = StyleUpdate;
+impl<'b> Iterator for StyleIter<'b> {
+    type Item = UpdateCommand;
 
     fn next(&mut self) -> Option<Self::Item> {
         match (self.current, self.next_update) {
             (None, None) => {
-                self.current = self.style_updates.get(self.cursor).copied();
+                self.current = self.instructions.get(self.cursor).copied();
                 self.get_next_update();
                 self.current
             }
@@ -335,12 +335,13 @@ impl<'b> Iterator for StyleCursor<'b> {
                 } else {
                     self.current = self.next_update.take();
                     self.cursor += 1;
-                    self.next_update = self.style_updates.get(self.cursor).copied();
+                    self.next_update = self.instructions.get(self.cursor).copied();
                     self.current
                 }
             }
             (Some(current), None) => current.into(),
         }
+        .map(|u| u.command)
     }
 }
 
@@ -360,13 +361,17 @@ where
     type Item = (Content<'a, S>, Option<OSControl<'a, S>>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.contents.get(self.cursor).map(|content| {
-            self.cursor += 1;
+        let r = self.contents.get(self.cursor).map(|content| {
             (
                 content.clone(),
                 self.oscontrols.get(self.cursor).cloned().flatten(),
             )
-        })
+        });
+
+        if r.is_some() {
+            self.cursor += 1;
+        }
+        r
     }
 }
 
@@ -382,23 +387,12 @@ impl<'b, 'a, S: 'a + ToOwned + ?Sized> Iterator for WriteIter<'b, 'a, S>
 where
     S: fmt::Debug,
 {
-    type Item = (bool, AnsiGenericString<'a, S>);
+    type Item = (UpdateCommand, Content<'a, S>, Option<OSControl<'a, S>>);
 
     fn next(&mut self) -> Option<Self::Item> {
         let (content, oscontrol) = self.content_iter.next()?;
-        let (style, is_plain) = self
-            .style_iter
-            .next()
-            .map(|update| (update.style, update.is_plain_except_reset))
-            .unwrap_or((Style::default(), true));
-        Some((
-            is_plain,
-            AnsiGenericString {
-                style,
-                content,
-                oscontrol,
-            },
-        ))
+        let update_command = self.style_iter.next().unwrap_or_default();
+        Some((update_command, content, oscontrol))
     }
 }
 
@@ -427,8 +421,8 @@ pub type AnsiStrings<'a> = AnsiGenericStrings<'a, str>;
 
 /// A function to construct an `AnsiStrings` instance.
 #[allow(non_snake_case)]
-pub fn AnsiStrings<'a>(_arg: &'a [AnsiString<'a>]) -> AnsiStrings<'a> {
-    unimplemented!()
+pub fn AnsiStrings<'a>(arg: &'a [AnsiString<'a>]) -> AnsiStrings<'a> {
+    AnsiGenericStrings::from_iter(arg)
 }
 
 /// A set of `AnsiByteString`s collected together, in order to be
@@ -437,8 +431,8 @@ pub type AnsiByteStrings<'a> = AnsiGenericStrings<'a, [u8]>;
 
 /// A function to construct an `AnsiByteStrings` instance.
 #[allow(non_snake_case)]
-pub fn AnsiByteStrings<'a>(_arg: &'a [AnsiByteString<'a>]) -> AnsiByteStrings<'a> {
-    unimplemented!()
+pub fn AnsiByteStrings<'a>(arg: &'a [AnsiByteString<'a>]) -> AnsiByteStrings<'a> {
+    AnsiGenericStrings::from_iter(arg)
 }
 
 // ---- paint functions ----
@@ -577,9 +571,15 @@ where
     {
         let mut last_is_plain = true;
 
-        for (is_plain, generic_string) in self.write_iter() {
-            generic_string.write_to_any(w)?;
-            last_is_plain = is_plain;
+        for (style_command, content, oscontrol) in self.write_iter() {
+            match style_command {
+                UpdateCommand::Prefix(style) => {
+                    style.write_prefix(w)?;
+                    last_is_plain = style.is_plain();
+                }
+                UpdateCommand::DoNothing => {}
+            }
+            AnsiGenericString::write_inner(&content, &oscontrol, w)?;
         }
 
         if last_is_plain {
@@ -615,8 +615,13 @@ mod tests {
         let unstyled_s = unstyled.clone().to_string();
 
         // check that RESET precedes unstyled
-        let joined = AnsiStrings(&[before_g, unstyled.clone()]).to_string();
-        assert!(joined.starts_with("\x1B[32mBefore is Green. \x1B[0m"));
+        let joined = AnsiStrings(&[before_g.clone(), unstyled.clone()]).to_string();
+        assert!(
+            joined.starts_with("\x1B[32mBefore is Green. \x1B[0m"),
+            "{:?} does not start with {:?}",
+            joined,
+            "\x1B[32mBefore is Green. \x1B[0m"
+        );
         assert!(
             joined.ends_with(unstyled_s.as_str()),
             "{:?} does not end with {:?}",
@@ -687,6 +692,7 @@ mod tests {
             .underline()
             .paint("Link to example.com.")
             .hyperlink("https://example.com");
+        dbg!("link: {:?}", &link);
         let after = Green.paint(" After link.");
 
         // Assemble with link by itself

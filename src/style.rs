@@ -250,8 +250,7 @@ impl Style {
         }
     }
 
-    /// Return true if this `Style` has no actual styles, and can be written
-    /// without any control characters.
+    /// Return true if this `Style` requires no escape codes to be represented.
     ///
     /// # Examples
     ///
@@ -261,6 +260,7 @@ impl Style {
     /// assert_eq!(true,  Style::default().is_plain());
     /// assert_eq!(false, Style::default().bold().is_plain());
     /// ```
+    #[inline]
     pub fn is_plain(self) -> bool {
         self == Style::default()
     }
@@ -593,7 +593,7 @@ impl Color {
     /// let style = Color::Rgb(31, 31, 31).on(Color::White);
     /// println!("{}", style.paint("eyyyy"));
     /// ```
-    pub fn on(self, background: Color) -> Style {
+    pub fn bg(self, background: Color) -> Style {
         Style {
             foreground: Some(self),
             background: Some(background),
