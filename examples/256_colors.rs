@@ -69,6 +69,6 @@ fn main() {
 
 fn glow(c: u8, light_bg: bool) {
     let base = if light_bg { Color::Black } else { Color::White };
-    let style = base.with_background(Color::Fixed(c));
+    let style = base.with_bg(Color::Fixed(c));
     print!("{}", style.paint(format_args!(" {:3} ", c)));
 }

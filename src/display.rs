@@ -142,6 +142,14 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericString<'a, S>
 where
     S: fmt::Debug,
 {
+    pub fn new(style: Style, content: Content<'a, S>, oscontrol: Option<OSControl<'a, S>>) -> Self {
+        Self {
+            style,
+            content,
+            oscontrol,
+        }
+    }
+
     /// Directly access the style
     pub const fn style(&self) -> &Style {
         &self.style
@@ -436,9 +444,16 @@ pub fn AnsiByteStrings<'a>(arg: &'a [AnsiByteString<'a>]) -> AnsiByteStrings<'a>
 }
 
 // ---- paint functions ----
-
 impl Style {
-    /// Paints the given text with this color, returning an ANSI string.
+    /// Paints the given text with this style, returning an ANSI string.
+    ///
+    /// ```
+    /// use nu_ansi_term::Style;
+    /// use nu_ansi_term::Color;
+    ///
+    /// println!("{}", Style::new().foreground(Color::Blue));
+    /// ```
+    #[inline]
     #[must_use]
     pub fn paint<'a, I, S: 'a + ToOwned + ?Sized>(self, input: I) -> AnsiGenericString<'a, S>
     where
@@ -446,8 +461,8 @@ impl Style {
         S: fmt::Debug,
     {
         AnsiGenericString {
-            style: self,
             content: input.into(),
+            style: self,
             oscontrol: None,
         }
     }
@@ -455,13 +470,14 @@ impl Style {
 
 impl Color {
     /// Paints the given text with this color, returning an ANSI string.
-    /// This is a short-cut so you don’t have to use `Blue.normal()` just
+    /// This is a short-cut so you don’t have to use `Blue.foreground()` just
     /// to get blue text.
     ///
     /// ```
     /// use nu_ansi_term::Color::Blue;
     /// println!("{}", Blue.paint("da ba dee"));
     /// ```
+    #[inline]
     #[must_use]
     pub fn paint<'a, I, S: 'a + ToOwned + ?Sized>(self, input: I) -> AnsiGenericString<'a, S>
     where

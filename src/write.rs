@@ -291,7 +291,7 @@ macro_rules! coerce_fmt_write {
 }
 
 #[macro_export]
-macro_rules! coerce_as_io_write {
+macro_rules! coerce_io_write {
     ($w:expr) => {{
         let w: &mut dyn io::Write = $w;
         w
