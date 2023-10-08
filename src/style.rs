@@ -1,7 +1,7 @@
+use std::hash::Hash;
+
 use bitflags::bitflags;
 use paste::paste;
-
-use crate::difference::StyleDelta;
 
 bitflags! {
     #[derive(Clone, Copy, Default, PartialEq, Eq)]
@@ -32,21 +32,6 @@ bitflags! {
 }
 
 impl StyleFlags {
-    /// Return true if this `Style` requires no escape codes to be represented.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use nu_ansi_term::Style;
-    ///
-    /// assert_eq!(true,  Style::default().status.is_plain());
-    /// assert_eq!(false, Style::default().bold().status.is_plain());
-    /// ```
-    #[inline]
-    pub const fn is_plain(self) -> bool {
-        self.is_empty()
-    }
-
     #[inline]
     pub fn has_color(self) -> bool {
         self.contains(StyleFlags::FOREGROUND | StyleFlags::BACKGROUND)
@@ -79,6 +64,26 @@ impl StyleFlags {
     #[inline]
     pub const fn turned_off(before: StyleFlags, after: StyleFlags) -> StyleFlags {
         before.intersection(after.complement())
+    }
+
+    #[inline]
+    pub fn set_flags(mut self, flags: StyleFlags) -> Self {
+        self.insert(flags);
+        self
+    }
+
+    #[inline]
+    pub fn unset_flags(mut self, flags: StyleFlags) -> Self {
+        self &= !flags;
+        self
+    }
+
+    #[inline]
+    pub fn is_format_prop(&self) -> bool {
+        !matches!(
+            *self,
+            StyleFlags::PREFIX_WITH_RESET | StyleFlags::FOREGROUND | StyleFlags::BACKGROUND
+        )
     }
 }
 
@@ -125,9 +130,9 @@ impl Default for Style {
     ///
     /// ```
     /// use nu_ansi_term::Style;
-    /// assert_eq!(None,  Style::default().foreground);
-    /// assert_eq!(None,  Style::default().background);
-    /// assert_eq!(false, Style::default().is_bold);
+    /// assert_eq!(None,  Style::default().is_foreground());
+    /// assert_eq!(None,  Style::default().is_background());
+    /// assert_eq!(false, Style::default().is_bold());
     /// assert_eq!("txt", Style::default().paint("txt").to_string());
     /// ```
     fn default() -> Self {
@@ -141,36 +146,44 @@ impl Default for Style {
 macro_rules! style_methods_for_flag {
     (@color $flag:ident) => {
         paste! {
-            #[doc = r"Returns a copy of this style with the [`StyleFlags::`" $flag r"`] property set, and the corresponding color value set to the provided color."]
+            #[doc = r"If a color is provided: returns a copy of this style with the [`StyleFlags::`" $flag r"`] property set, and the corresponding color value set to the provided color."]
+            #[doc = r"Otherwise, it unsets the property flag, and sets the underlying color to `None`."]
             #[doc = r""]
             #[doc = r"# Examples"]
             #[doc = r""]
             #[doc = r"```"]
             #[doc = r"use nu_ansi_term::Style;"]
+            #[doc = r"use nu_ansi_term::Color;"]
             #[doc = r""]
             #[doc = r"let style = Style::new()." [< $flag:lower >] r"(Color::Red);"]
             #[doc = r#"println!("{}", style.paint("hey"));"# ]
             #[doc = r"```"]
-            pub fn [< $flag:lower >](self, color: Color) -> Style {
-                let mut r = self.with_flags(StyleFlags::$flag);
-                r.coloring.[< $flag:lower >] = color.into();
-                r
+            #[inline]
+            pub fn [< set_ $flag:lower >](mut self, color: Option<Color>) -> Self {
+                if self.[<is_ $flag:lower>]() != color {
+                    let relevant_flag = StyleFlags::[< $flag >];
+                    if color.is_some() {
+                        self.flags.insert(relevant_flag)
+                    } else {
+                        self.unset_flags(relevant_flag);
+                    }
+                    self.coloring.[< $flag:lower >] = color;
+                }
+                self
+            }
+
+            #[inline]
+            pub fn [< $flag:lower >](&self, color: Color) -> Self {
+                self.[< set_ $flag:lower >](color.into())
             }
 
             #[doc = r"Checks if the [`StyleFlags::`" $flag r"`] property is set, and returns the corresponding color if so."]
-            pub const fn [< is_ $flag:lower >](self) -> Option<Color> {
+            pub const fn [< is_ $flag:lower >](&self) -> Option<Color> {
                 if self.flags.contains(StyleFlags::$flag) {
                     self.coloring.[< $flag:lower >]
                 } else {
                     None
                 }
-            }
-
-            #[doc = r"Returns a copy of this style with the [`StyleFlags::`" $flag r"`] property and corresponding color value unset."]
-            pub fn [< without_ $flag:lower >](self) -> Style {
-                let mut r = self.without_flags(StyleFlags::$flag);
-                r.coloring.[< $flag:lower >].take();
-                r
             }
         }
     };
@@ -193,18 +206,18 @@ macro_rules! style_methods_for_flag {
             #[doc = r"let style = Style::new()." [< $flag:lower >] r"();"]
             #[doc = r#"println!("{}", style.paint("hey"));"# ]
             #[doc = r"```"]
-            pub fn [< $flag:lower >](self) -> Style {
-                self.with_flags(StyleFlags::$flag)
+            pub fn [< $flag:lower >](&self) -> Style {
+                (*self).set_flags(StyleFlags::$flag)
             }
 
             #[doc = r"Checks if the [`StyleFlags::`" $flag r"`] property is set."]
-            pub const fn [< is_ $flag:lower >](self) -> bool {
+            pub const fn [< is_ $flag:lower >](&self) -> bool {
                 self.flags.contains(StyleFlags::$flag)
             }
 
             #[doc = r"Returns a copy of this style with the [`StyleFlags::`" $flag r"`] property unset."]
-            pub fn [< without_ $flag:lower >](self) -> Style {
-                self.without_flags(StyleFlags::$flag)
+            pub fn [< without_ $flag:lower >](&self) -> Style {
+                (*self).unset_flags(StyleFlags::$flag)
             }
         }
     }
@@ -231,21 +244,24 @@ impl Style {
         Style::default()
     }
 
-    #[inline]
-    fn with_flags(self, status: StyleFlags) -> Style {
-        let mut r = self;
-        r.flags.insert(status);
-        dbg!("with_flags");
-        dbg!(status);
-        dbg!(r);
-        r
+    pub fn set_flags(mut self, flags: StyleFlags) -> Self {
+        self.flags.insert(flags);
+        self
+    }
+
+    pub fn unset_flags(mut self, flags: StyleFlags) -> Self {
+        self.flags &= !flags;
+        self
     }
 
     #[inline]
-    fn without_flags(self, status: StyleFlags) -> Style {
-        let mut r = self;
-        r.flags.remove(status);
-        r
+    pub fn with_flags(&self, flags: StyleFlags) -> Style {
+        (*self).set_flags(flags)
+    }
+
+    #[inline]
+    pub fn without_flags(&self, flags: StyleFlags) -> Style {
+        (*self).unset_flags(flags)
     }
 
     style_methods!(
@@ -269,30 +285,35 @@ impl Style {
     /// ```
     /// use nu_ansi_term::Style;
     ///
-    /// assert_eq!(true,  Style::default().is_plain());
-    /// assert_eq!(false, Style::default().bold().is_plain());
+    /// assert_eq!(true,  Style::default().is_empty());
+    /// assert_eq!(false, Style::default().bold().is_empty());
     /// ```
     #[inline]
-    pub const fn is_plain(self) -> bool {
-        self.flags.is_plain()
+    pub const fn is_empty(&self) -> bool {
+        self.flags.is_empty()
     }
 
     #[inline]
-    pub fn has_color(self) -> bool {
+    pub fn has_no_styling(&self) -> bool {
+        self.without_prefix_with_reset().is_empty()
+    }
+
+    #[inline]
+    pub fn has_color(&self) -> bool {
         self.flags.has_color()
     }
 
     /// Get the flags which are unrelated to color or prefixing with a reset,
     /// and are only involved in formatting the output in some manner.
     #[inline]
-    pub fn format_flags(self) -> StyleFlags {
+    pub fn format_flags(&self) -> StyleFlags {
         self.flags.format_flags()
     }
 
     /// Check if the style contains some property which cannot be inverted, and
     /// thus must be followed by a reset flag in order turn off its effect.
     #[inline]
-    pub fn has_non_invertible(self) -> bool {
+    pub fn has_non_invertible(&self) -> bool {
         self.flags.has_formatting()
     }
 
@@ -308,43 +329,19 @@ impl Style {
         StyleFlags::turned_on(before.flags, after.flags)
     }
 
-    pub fn compute_delta(self, next: Style) -> StyleDelta {
-        dbg!("computing delta between: {:?} and {:?}", self, next);
-        if self == next {
-            dbg!("self == next, returning Empty");
-            StyleDelta::Empty
-        } else if next.is_plain() && !self.is_plain() {
-            dbg!(
-                "self is not plain, next requires reset: {:?}",
-                next.prefix_with_reset()
-            );
-            StyleDelta::PrefixUsing(next.prefix_with_reset())
-        } else {
-            let turned_off_in_next = Style::turned_off(self, next);
-            dbg!("which turned off: {:?}", turned_off_in_next);
-            if turned_off_in_next.has_formatting() || turned_off_in_next.has_color() {
-                dbg!(
-                    "formatting, or a color was turned off; returning next with reset prefix: {:?}",
-                    next.prefix_with_reset()
-                );
-                StyleDelta::PrefixUsing(next.prefix_with_reset())
-            } else {
-                let turned_on_from_self = Self::turned_on(self, next);
-                dbg!(
-                    "the following flags were turned on in next, compared to self: {:?}",
-                    turned_on_from_self
-                );
-                let mut r = Style::default().with_flags(turned_on_from_self);
-                if !(self.is_foreground() == next.is_foreground()) {
-                    r.coloring.foreground = next.coloring.foreground;
-                }
-                if !(self.is_background() == next.is_background()) {
-                    r.coloring.background = next.coloring.background;
-                }
-                dbg!("returning delta style: {r:?}");
-                StyleDelta::PrefixUsing(r)
-            }
-        }
+    pub fn set_coloring(self, coloring: Coloring) -> Self {
+        self.set_foreground(coloring.foreground)
+            .set_background(coloring.background)
+    }
+
+    pub fn coloring(&self, coloring: Coloring) -> Self {
+        (*self).set_coloring(coloring)
+    }
+
+    pub fn iter_formats(&self) -> impl Iterator<Item = (&'_ str, StyleFlags)> {
+        self.flags
+            .iter_names()
+            .filter_map(|(name, flag)| flag.is_format_prop().then_some((name, flag)))
     }
 }
 

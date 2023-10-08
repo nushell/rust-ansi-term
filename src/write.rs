@@ -5,6 +5,46 @@ use std::io;
 
 pub type WriteResult<E> = Result<(), E>;
 
+#[macro_export]
+macro_rules! write_any_fmt {
+    ($w:expr, $($args:tt)*) => {
+        $w.write_any_fmt(std::format_args!($($args)*))
+    };
+}
+
+#[macro_export]
+macro_rules! write_any_str {
+    ($w:expr, $($args:tt)*) => {
+        $($args)*.write_str_to($w)
+    };
+}
+
+#[macro_export]
+macro_rules! write_any {
+    ($w:expr, $($args:tt)*) => {
+        {
+            let c = $crate::write::Content::from($($args)*);
+            c.write_to($w)
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! coerce_fmt_write {
+    ($w:expr) => {{
+        let w: &mut dyn fmt::Write = $w;
+        w
+    }};
+}
+
+#[macro_export]
+macro_rules! coerce_io_write {
+    ($w:expr) => {{
+        let w: &mut dyn io::Write = $w;
+        w
+    }};
+}
+
 pub trait AnyWrite {
     type Buf: ?Sized + ToOwned;
     type Error;
@@ -102,12 +142,7 @@ where
             Content::FmtArgs(x) => format!("{}", x),
             Content::StrLike(x) => {
                 let mut s = String::new();
-                x.as_ref()
-                    .write_str_to({
-                        let s: &mut dyn fmt::Write = &mut s;
-                        s
-                    })
-                    .unwrap();
+                x.write_str_to(coerce_fmt_write!(&mut s)).unwrap();
                 s
             }
         }
@@ -257,43 +292,3 @@ impl<'a> From<String> for Content<'a, str> {
 // }
 
 // impl<'a, S> IntoWriteable<'a, S> for Content<'a, S> {}
-
-#[macro_export]
-macro_rules! write_any_fmt {
-    ($w:expr, $($args:tt)*) => {
-        $w.write_any_fmt(std::format_args!($($args)*))
-    };
-}
-
-#[macro_export]
-macro_rules! write_any_str {
-    ($w:expr, $($args:tt)*) => {
-        $($args)*.write_str_to($w)
-    };
-}
-
-#[macro_export]
-macro_rules! write_any {
-    ($w:expr, $($args:tt)*) => {
-        {
-            let c = $crate::write::Content::from($($args)*);
-            c.write_to($w)
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! coerce_fmt_write {
-    ($w:expr) => {{
-        let w: &mut dyn fmt::Write = $w;
-        w
-    }};
-}
-
-#[macro_export]
-macro_rules! coerce_io_write {
-    ($w:expr) => {{
-        let w: &mut dyn io::Write = $w;
-        w
-    }};
-}

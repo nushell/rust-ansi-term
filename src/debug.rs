@@ -2,11 +2,15 @@ use itertools::Itertools;
 
 use crate::{
     coerce_fmt_write,
-    style::{Style, StyleFlags},
+    difference::StyleDelta,
+    style::{Coloring, Style, StyleFlags},
     write::Content,
-    AnsiGenericString, Color,
+    AnsiGenericString, Color, Infix,
 };
-use std::fmt::{self, Debug};
+use std::{
+    collections::HashSet,
+    fmt::{self, Debug},
+};
 
 fn debug_write_style_flags_to(f: &mut dyn fmt::Write, flags: StyleFlags) -> Result<(), fmt::Error> {
     f.write_str(
@@ -75,7 +79,10 @@ fn debug_style_to_string(
     Ok(dbg_s)
 }
 
-/// Styles show flags that are on, and any corresponding colors, if they exist.
+/// In debug mode, [`Style`]s show flags that are on, and any corresponding
+/// colors, if they exist. In alternate debug mode (`:#?`), [`Style`]s show
+/// themselves in full detail.
+///
 ///
 /// ```
 ///     use nu_ansi_term::Color::{Red, Blue};
@@ -88,15 +95,22 @@ fn debug_style_to_string(
 /// ```
 impl Debug for Style {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            debug_style_to_string(
-                self.flags,
-                self.coloring.foreground,
-                self.coloring.background
-            )?
-        )
+        if !f.alternate() {
+            f.debug_struct("Style")
+                .field("flags", &self.flags)
+                .field("coloring", &self.coloring)
+                .finish()
+        } else {
+            write!(
+                f,
+                "{}",
+                debug_style_to_string(
+                    self.flags,
+                    self.coloring.foreground,
+                    self.coloring.background
+                )?
+            )
+        }
     }
 }
 
@@ -113,7 +127,15 @@ impl Debug for Style {
 /// ```
 impl Debug for StyleFlags {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        debug_write_style_flags_to(f, *self)
+        if !f.alternate() {
+            let x = StyleFlags::all()
+                .iter_names()
+                .map(|(name, flag)| format!("{}: {}", name, self.contains(flag)))
+                .join(", ");
+            f.debug_tuple("StyleFlags").field(&x).finish()
+        } else {
+            debug_write_style_flags_to(f, *self)
+        }
     }
 }
 
@@ -134,7 +156,7 @@ pub fn assert_required<T: PartialEq<U> + Eq + Debug, U: PartialEq<T> + Eq + Debu
 #[allow(unused)]
 #[inline]
 pub fn test_style_eq(test_style: Style, required: &str) {
-    let test = format!("{:?}", test_style);
+    let test = format!("{:#?}", test_style);
     assert_required(test, required, None);
 }
 
@@ -151,7 +173,7 @@ where
     assert_required(
         test_result,
         required,
-        format_args!("(test_style) {test_style:?}").into(),
+        format_args!("(test_style) {test_style:#?}").into(),
     );
 
     let mut v = Vec::new();
@@ -165,12 +187,24 @@ where
     assert_required(
         slice_v,
         required,
-        format_args!("(test_style) {test_style:?}").into(),
+        format_args!("(test_style) {test_style:#?}").into(),
     );
+}
+
+#[allow(unused)]
+#[inline]
+pub fn test_styled_string_eq(outcome: String, required: &str) {
+    assert_required(outcome, required, None);
 }
 
 #[macro_export]
 macro_rules! style_test {
+    (@str_cmp $name: ident: try:$test:expr; req:$req:literal) => {
+        #[test]
+        fn $name() {
+            $crate::debug::test_styled_string_eq($test, $req)
+        }
+    };
     (@style_eq $name: ident : try:$test:expr; req:($flags:expr, $fg:expr, $bg:expr)) => {
         #[test]
         fn $name() {
@@ -235,6 +269,113 @@ impl DebugStylePaint for Color {
     }
 }
 
+impl DebugStylePaint for Infix {
+    fn into_style(self) -> Style {
+        match self.0.compute_delta(self.1) {
+            StyleDelta::PrefixUsing(style) => style,
+            StyleDelta::Empty => Style::new(),
+        }
+    }
+}
+
+pub trait DebugDiff: Debug + PartialEq + Eq {
+    fn debug_diff(&self, expected: &Self) -> String;
+}
+
+impl DebugDiff for StyleFlags {
+    fn debug_diff(&self, expected: &Self) -> String {
+        if self == expected {
+            format!("{self:#?} (no diff)")
+        } else {
+            let outcome_flags = HashSet::<_>::from_iter(self.iter_names().map(|(n, _)| n));
+            let expected_flags = HashSet::<_>::from_iter(expected.iter_names().map(|(n, _)| n));
+            let in_outcome_not_expected = outcome_flags
+                .difference(&expected_flags)
+                .copied()
+                .collect::<Vec<&str>>();
+            let in_expected_not_outcome = expected_flags
+                .difference(&outcome_flags)
+                .copied()
+                .collect::<Vec<&str>>();
+            format!(
+                "StyleFlags((outcome) {self:#?} (missing: {in_expected_not_outcome:#?}) <~> (missing: {in_outcome_not_expected:#?}) {expected:#?} (expected))",
+            )
+        }
+    }
+}
+
+impl DebugDiff for Color {
+    fn debug_diff(&self, expected: &Self) -> String {
+        if self != expected {
+            format!("Color((outcome) {self:#?} != {expected:#?} (expected))",)
+        } else {
+            format!("{self:#?} (no diff)",)
+        }
+    }
+}
+
+impl<T: DebugDiff> DebugDiff for Option<T> {
+    fn debug_diff(&self, expected: &Self) -> String {
+        if self == expected {
+            format!("{self:#?} (no diff)")
+        } else {
+            match (self, expected) {
+                (None, Some(e)) => {
+                    format!("(outcome) {self:#?} != {e:#?} (expected)")
+                }
+                (Some(out), None) => {
+                    format!("(outcome) {out:#?} != {expected:#?} (expected)")
+                }
+                (Some(o), Some(e)) => {
+                    format!("Option<{}>", o.debug_diff(e))
+                }
+                _ => unreachable!(),
+            }
+        }
+    }
+}
+
+impl DebugDiff for Coloring {
+    fn debug_diff(&self, expected: &Self) -> String {
+        format!(
+            "Coloring {{\n\tforeground: {},\n\tbackground: {},\n}}",
+            self.foreground.debug_diff(&expected.foreground),
+            expected.background.debug_diff(&expected.background)
+        )
+    }
+}
+
+impl DebugDiff for Style {
+    fn debug_diff(&self, expected: &Self) -> String {
+        format!(
+            "Style {{\n\tflags: {},\n\tcoloring: {},\n}}",
+            self.flags.debug_diff(&expected.flags),
+            self.coloring.debug_diff(&expected.coloring),
+        )
+    }
+}
+
+impl DebugDiff for StyleDelta {
+    fn debug_diff(&self, expected: &Self) -> String {
+        if self == expected {
+            format!("{self:#?} (no diff)")
+        } else {
+            match (self, expected) {
+                (StyleDelta::PrefixUsing(o), StyleDelta::PrefixUsing(e)) => {
+                    format!("StyleDelta::PrefixUsing({})", o.debug_diff(e))
+                }
+                (StyleDelta::PrefixUsing(o), StyleDelta::Empty) => {
+                    format!("StyleDelta::PrefixUsing({o:#?} != {expected:#?})")
+                }
+                (StyleDelta::Empty, StyleDelta::PrefixUsing(e)) => {
+                    format!("StyleDelta::PrefixUsing({self:#?} != {e:#?})")
+                }
+                _ => unreachable!(),
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use crate::debug::debug_style_to_string;
@@ -245,7 +386,7 @@ mod test {
 
     macro_rules! create_style_eq_tests {
         () => {};
-        (@style_eq [$test_name:ident: $color:expr, $req:literal] $($args:tt)*) => {
+        ([$test_name:ident: $color:expr, $req:literal] $($args:tt)*) => {
             paste! {
                 style_test!(
                     @style_eq $test_name:
@@ -255,7 +396,7 @@ mod test {
             }
             create_style_eq_tests!($($args)*);
         };
-        (@style_eq [$test_name:ident: $($flag:ident),*] $($args:tt)*) => {
+        ([$test_name:ident: $($flag:ident),*] $($args:tt)*) => {
             paste! {
                 style_test!(
                     @style_eq $test_name:
@@ -274,11 +415,11 @@ mod test {
     );
 
     create_style_eq_tests!(
-        @style_eq [bold: bold]
-        @style_eq [italic: italic]
-        @style_eq [both: bold, italic]
-        @style_eq [red: Red.foreground(), "Style { foreground(Red) }"]
-        @style_eq [redblue: Red.with_bg(Rgb(3, 2, 4)), "Style { foreground(Red),.with_bg(Rgb(3, 2, 4)) }"]
-        @style_eq [everything: Red.with_bg(Blue).blink().bold().dimmed().hidden().italic().reverse().strikethrough().underline(), "Style { blink, bold, dimmed, hidden, italic, reverse, strikethrough, underline, foreground(Red),.with_bg(Blue) }"]
+        [bold: bold]
+        [italic: italic]
+        [both: bold, italic]
+        [red: Red.foreground(), "Style { foreground(Red) }"]
+        [redblue: Red.with_bg(Rgb(3, 2, 4)), "Style { foreground(Red), background(Rgb(3, 2, 4)) }"]
+        [everything: Red.with_bg(Blue).blink().bold().dimmed().hidden().italic().reverse().strikethrough().underline(), "Style { blink, bold, dimmed, hidden, italic, reverse, strikethrough, underline, foreground(Red), background(Blue) }"]
     );
 }

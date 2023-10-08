@@ -1,9 +1,41 @@
 #![allow(missing_docs)]
 use crate::difference::StyleDelta;
-use crate::style::{Color, Style};
+use crate::style::{Color, Style, StyleFlags};
 use crate::write::{AnyWrite, StrLike, WriteResult};
 use crate::{coerce_fmt_write, write_any_fmt, write_any_str};
 use std::fmt;
+
+impl StyleFlags {
+    #[cfg(not(feature = "gnu_legacy"))]
+    fn as_format_char(self) -> Option<char> {
+        match self {
+            StyleFlags::BOLD => '1'.into(),
+            StyleFlags::DIMMED => '2'.into(),
+            StyleFlags::ITALIC => '3'.into(),
+            StyleFlags::UNDERLINE => '4'.into(),
+            StyleFlags::BLINK => '5'.into(),
+            StyleFlags::REVERSE => '7'.into(),
+            StyleFlags::HIDDEN => '8'.into(),
+            StyleFlags::STRIKETHROUGH => '9'.into(),
+            _ => None,
+        }
+    }
+
+    #[cfg(feature = "gnu_legacy")]
+    fn as_format_char(self) -> &'static str {
+        match self {
+            StyleFlags::BOLD => "01".into(),
+            StyleFlags::DIMMED => "02".into(),
+            StyleFlags::ITALIC => "03".into(),
+            StyleFlags::UNDERLINE => "04".into(),
+            StyleFlags::BLINK => "05".into(),
+            StyleFlags::REVERSE => "07".into(),
+            StyleFlags::HIDDEN => "08".into(),
+            StyleFlags::STRIKETHROUGH => "09".into(),
+            _ => None,
+        }
+    }
+}
 
 impl Style {
     /// Write any bytes that go *before* a piece of text to the given writer.
@@ -12,88 +44,95 @@ impl Style {
         str: AsRef<W::Buf>,
         W::Buf: ToOwned,
     {
+        // If there are actually no styles here, then don’t write *any* codes
+        // as the prefix. An empty ANSI code may not affect the terminal
+        // output at all, but a user may just want a code-free string.
+        if self.is_empty() {
+            return Ok(());
+        }
+
         // Prefix everything with reset characters if needed
         if self.is_prefix_with_reset() {
             write_any_str!(f, "\x1B[0m")?
         }
 
-        // If there are actually no styles here, then don’t write *any* codes
-        // as the prefix. An empty ANSI code may not affect the terminal
-        // output at all, but a user may just want a code-free string.
-        if self.is_plain() {
+        if self.has_no_styling() {
             return Ok(());
         }
 
-        // Write the codes’ prefix, then write numbers, separated by
-        // semicolons, for each text style we want to apply.
-        write_any_str!(f, "\x1B[")?;
-        let mut written_anything = false;
-
+        fn write_front<W: AnyWrite + ?Sized>(
+            f: &mut W,
+            write_occurred: bool,
+        ) -> WriteResult<W::Error>
+        where
+            str: AsRef<W::Buf>,
+            W::Buf: ToOwned,
         {
-            let mut write_char = |c| {
-                if written_anything {
-                    write_any_str!(f, ";")?;
-                }
-                written_anything = true;
-                #[cfg(feature = "gnu_legacy")]
-                f.write_str("0".as_ref())?;
-                write_any_fmt!(f, "{}", c)?;
-                Ok(())
-            };
+            if write_occurred {
+                write_any_str!(f, ";")
+            } else {
+                // front of the ANSI escape code sequence
+                write_any_str!(f, "\x1B[")
+            }
+        }
 
-            if self.is_bold() {
-                write_char('1')?
+        fn write_code<W: AnyWrite + ?Sized, T, F: Fn(&mut W, T) -> WriteResult<W::Error>>(
+            f: &mut W,
+            input: Option<T>,
+            write_op: F,
+            write_occurred: bool,
+        ) -> Result<bool, W::Error>
+        where
+            str: AsRef<W::Buf>,
+            W::Buf: ToOwned,
+        {
+            if let Some(x) = input {
+                write_front(f, write_occurred)?;
+                write_op(f, x)?;
+                Ok(true)
+            } else {
+                Ok(write_occurred)
             }
-            if self.is_dimmed() {
-                write_char('2')?
-            }
-            if self.is_italic() {
-                write_char('3')?
-            }
-            if self.is_underline() {
-                write_char('4')?
-            }
-            if self.is_blink() {
-                write_char('5')?
-            }
-            if self.is_reverse() {
-                write_char('7')?
-            }
-            if self.is_hidden() {
-                write_char('8')?
-            }
-            if self.is_strikethrough() {
-                write_char('9')?
-            }
+        }
+
+        let mut write_occurred = false;
+        for (_, flag) in self.iter_formats() {
+            write_occurred = write_code(
+                f,
+                flag.as_format_char(),
+                |f, x| write_any_fmt!(f, "{}", x),
+                write_occurred,
+            )?;
         }
 
         // The foreground and background colors, if specified, need to be
         // handled specially because the number codes are more complicated.
         // (see `write_background_code` and `write_foreground_code`)
-        if let Some(background) = self.is_background() {
-            if written_anything {
-                write_any_str!(f, ";")?;
-            }
-            written_anything = true;
-            background.write_background_code(f)?;
-        }
+        write_occurred = write_code(
+            f,
+            self.is_background(),
+            |f, x| x.write_background_code(f),
+            write_occurred,
+        )?;
 
-        if let Some(foreground) = self.is_foreground() {
-            if written_anything {
-                write_any_str!(f, ";")?;
-            }
-            foreground.write_foreground_code(f)?;
-        }
+        write_occurred = write_code(
+            f,
+            self.is_foreground(),
+            |f, x| x.write_foreground_code(f),
+            write_occurred,
+        )?;
 
-        // All the codes end with an `m`, because reasons.
-        write_any_str!(f, "m")?;
+        if write_occurred {
+            // All the codes end with an `m`, because reasons.
+            write_any_str!(f, "m")?;
+        }
 
         Ok(())
     }
 
     /// Write any bytes that go *after* a piece of text to the given writer.
     fn write_suffix<W: AnyWrite + ?Sized>(&self, f: &mut W) -> WriteResult<W::Error> {
-        if self.is_plain() {
+        if self.is_empty() {
             Ok(())
         } else {
             write_any_fmt!(f, "{}", RESET)
@@ -181,7 +220,7 @@ pub struct Prefix(Style);
 /// string with the `.to_string()` method. For examples, see
 /// [`Style::infix`](struct.Style.html#method.infix).
 #[derive(Clone, Copy, Debug)]
-pub struct Infix(Style, Style);
+pub struct Infix(pub Style, pub Style);
 
 /// Like `AnsiString`, but only displays the style suffix.
 ///
@@ -380,6 +419,27 @@ impl fmt::Display for Suffix {
 #[macro_export]
 macro_rules! create_content_eq_tests {
     () => {};
+    (@str_cmp [$test_name:ident: $outcome:expr, $req:literal] $($args:tt)*) => {
+        paste! {
+            style_test!(
+                @str_cmp $test_name:
+                try:$outcome;
+                req:$req
+            );
+        }
+        create_content_eq_tests!($($args)*);
+    };
+    ([$test_name:ident: $style:expr, $content:literal, $req:literal] $($args:tt)*) => {
+        paste! {
+            style_test!(
+                @content_eq $test_name:
+                try:$style;
+                content:$content;
+                req:$req
+            );
+        }
+        create_content_eq_tests!($($args)*);
+    };
     ([$test_name:ident: $style:expr, $content:expr, $req:literal] $($args:tt)*) => {
         paste! {
             style_test!(
@@ -442,28 +502,12 @@ mod test {
         [hidden: Style::new().hidden(), "hi", "\x1B[8mhi\x1B[0m"]
         [stricken: Style::new().strikethrough(), "hi", "\x1B[9mhi\x1B[0m"]
         [lr_on_lr: LightRed.with_bg(LightRed), "hi", "\x1B[101;91mhi\x1B[0m"]
+        @str_cmp [reset_format: Style::new().dimmed().infix(Style::new()).to_string(), "\x1B[0m"]
+        @str_cmp [reset_then_style: White.dimmed().infix(White.foreground()).to_string(), "\x1B[0m\x1B[37m"]
+        @str_cmp [color_then_format: White.foreground().infix(White.bold()).to_string(), "\x1B[1m"]
+        @str_cmp [color_change: White.foreground().infix(Blue.foreground()).to_string(), "\x1B[34m"]
+        @str_cmp [no_change: Blue.bold().infix(Blue.bold()).to_string(), ""]
     );
-
-    #[test]
-    fn test_infix() {
-        assert_eq!(
-            Style::new().dimmed().infix(Style::new()).to_string(),
-            "\x1B[0m"
-        );
-        assert_eq!(
-            White.dimmed().infix(White.foreground()).to_string(),
-            "\x1B[0m\x1B[37m"
-        );
-        assert_eq!(
-            White.foreground().infix(White.bold()).to_string(),
-            "\x1B[1m"
-        );
-        assert_eq!(
-            White.foreground().infix(Blue.foreground()).to_string(),
-            "\x1B[34m"
-        );
-        assert_eq!(Blue.bold().infix(Blue.bold()).to_string(), "");
-    }
 }
 
 #[cfg(test)]

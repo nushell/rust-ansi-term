@@ -7,6 +7,44 @@ pub enum StyleDelta {
     Empty,
 }
 
+impl Style {
+    pub fn compute_delta(self, next: Style) -> StyleDelta {
+        println!("computing delta");
+        dbg!(self, next);
+        if self == next {
+            println!("self == next, returning Empty");
+            StyleDelta::Empty
+        } else if next.is_empty() && !self.is_empty() {
+            println!("self is not plain, next requires reset, returning:");
+            dbg!(next.prefix_with_reset());
+            StyleDelta::PrefixUsing(next.prefix_with_reset())
+        } else {
+            let turned_off_in_next = Style::turned_off(self, next);
+            dbg!(turned_off_in_next);
+            if turned_off_in_next.has_formatting() || turned_off_in_next.has_color() {
+                println!(
+                    "formatting, or a color was turned off; returning next with reset prefix:"
+                );
+                dbg!(next.prefix_with_reset());
+                StyleDelta::PrefixUsing(next.prefix_with_reset())
+            } else {
+                let turned_on_from_self = Self::turned_on(self, next);
+                dbg!(turned_on_from_self);
+                let mut r = Style::default().set_flags(turned_on_from_self);
+                if self.is_foreground() != next.is_foreground() {
+                    r = r.set_foreground(next.coloring.foreground);
+                }
+                if self.is_background() != next.is_background() {
+                    r = r.set_background(next.coloring.background);
+                }
+                println!("returning: ");
+                dbg!(r);
+                StyleDelta::PrefixUsing(r)
+            }
+        }
+    }
+}
+
 impl StyleDelta {
     pub fn delta_next(self, next: Style) -> StyleDelta {
         match self {
@@ -30,7 +68,14 @@ mod test {
         ($name: ident: $first: expr; $next: expr => $result: expr) => {
             #[test]
             fn $name() {
-                assert_eq!($result, $first.compute_delta($next));
+                let outcome = $first.compute_delta($next);
+                let expected = $result;
+                if outcome != expected {
+                    use crate::debug::DebugDiff;
+                    let diff = outcome.debug_diff(&expected);
+                    println!("difference!\n{diff}");
+                }
+                assert_eq!(outcome, expected);
             }
         };
     }

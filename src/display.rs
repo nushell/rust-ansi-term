@@ -255,37 +255,33 @@ where
     }
 
     pub fn push(&mut self, s: AnsiGenericString<'a, S>) {
-        let index = self.push_content(s.content().clone());
-        self.push_style(*s.style(), index);
+        let len = self.push_content(s.content().clone());
+        self.push_style(*s.style(), len - 1);
         self.push_oscontrol(s.oscontrol().clone());
     }
 
     fn push_style(&mut self, next: Style, begins_at: usize) {
-        let instructions = self
+        let command = self
             .style_updates
             .last()
-            .map(|style_update| style_update.command.delta_next(next))
-            .unwrap_or_else(|| {
-                if next.is_plain() {
-                    StyleDelta::Empty
-                } else {
-                    StyleDelta::PrefixUsing(next)
-                }
-            });
+            .copied()
+            .unwrap_or_default()
+            .command
+            .delta_next(next);
+        dbg!(begins_at, command);
 
-        self.style_updates.push(StyleUpdate {
-            begins_at,
-            command: instructions,
-        })
+        self.style_updates.push(StyleUpdate { begins_at, command })
     }
 
     #[inline]
     fn push_oscontrol(&mut self, oscontrol: Option<OSControl<'a, S>>) {
+        dbg!(oscontrol.as_ref());
         self.oscontrols.push(oscontrol)
     }
 
     #[inline]
     fn push_content(&mut self, content: Content<'a, S>) -> usize {
+        dbg!(&content);
         self.contents.push(content);
         self.contents.len()
     }
@@ -314,7 +310,7 @@ pub struct StyleIter<'a> {
     current: Option<StyleUpdate>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct StyleUpdate {
     command: StyleDelta,
     begins_at: usize,
@@ -342,8 +338,7 @@ impl<'b> Iterator for StyleIter<'b> {
                     current
                 } else {
                     self.current = self.next_update.take();
-                    self.cursor += 1;
-                    self.next_update = self.instructions.get(self.cursor).copied();
+                    self.get_next_update();
                     self.current
                 }
             }
@@ -591,7 +586,7 @@ where
             match style_command {
                 StyleDelta::PrefixUsing(style) => {
                     style.write_prefix(w)?;
-                    last_is_plain = style.is_plain();
+                    last_is_plain = style.has_no_styling();
                 }
                 StyleDelta::Empty => {}
             }
@@ -599,6 +594,7 @@ where
         }
 
         if last_is_plain {
+            dbg!(last_is_plain);
             Ok(())
         } else {
             Style::default().prefix_with_reset().write_prefix(w)
@@ -611,6 +607,7 @@ where
 #[cfg(test)]
 mod tests {
     pub use super::super::{AnsiGenericString, AnsiStrings};
+    use crate::debug::assert_required;
     pub use crate::style::Color::*;
     pub use crate::style::Style;
 
@@ -622,72 +619,116 @@ mod tests {
         assert_eq!(output, "onetwo");
     }
 
-    // NOTE: unstyled because it could have OSC escape sequences
-    fn idempotent(unstyled: AnsiGenericString<'_, str>) {
-        let before_g = Green.paint("Before is Green. ");
-        let before = Style::default().paint("Before is Plain. ");
-        let after_g = Green.paint(" After is Green.");
-        let after = Style::default().paint(" After is Plain.");
-        let unstyled_s = unstyled.clone().to_string();
+    #[test]
+    fn title_solo() {
+        let unstyled = AnsiGenericString::title("hello");
 
-        // check that RESET precedes unstyled
-        let joined = AnsiStrings(&[before_g.clone(), unstyled.clone()]).to_string();
-        assert!(
-            joined.starts_with("\x1B[32mBefore is Green. \x1B[0m"),
-            "{:?} does not start with {:?}",
-            joined,
-            "\x1B[32mBefore is Green. \x1B[0m"
-        );
-        assert!(
-            joined.ends_with(unstyled_s.as_str()),
-            "{:?} does not end with {:?}",
-            joined,
-            unstyled_s
-        );
 
-        // check that RESET does not follow unstyled when appending styled
-        let joined = AnsiStrings(&[unstyled.clone(), after_g.clone()]).to_string();
-        assert!(
-            joined.starts_with(unstyled_s.as_str()),
-            "{:?} does not start with {:?}",
-            joined,
-            unstyled_s
-        );
-        assert!(joined.ends_with("\x1B[32m After is Green.\x1B[0m"));
-
-        // does not introduce spurious SGR codes (reset or otherwise) adjacent
-        // to plain strings
         let joined = AnsiStrings(&[unstyled.clone()]).to_string();
-        assert!(
-            !joined.contains("\x1B["),
-            "{:?} does contain \\x1B[",
-            joined
-        );
-        let joined = AnsiStrings(&[before.clone(), unstyled.clone()]).to_string();
-        assert!(
-            !joined.contains("\x1B["),
-            "{:?} does contain \\x1B[",
-            joined
-        );
-        let joined = AnsiStrings(&[before.clone(), unstyled.clone(), after.clone()]).to_string();
-        assert!(
-            !joined.contains("\x1B["),
-            "{:?} does contain \\x1B[",
-            joined
-        );
-        let joined = AnsiStrings(&[unstyled.clone(), after.clone()]).to_string();
-        assert!(
-            !joined.contains("\x1B["),
-            "{:?} does contain \\x1B[",
-            joined
-        );
+        let required = "\x1B]2;hello\x1B\\";
+        assert_required(joined, required, None);
     }
 
     #[test]
-    fn title() {
-        let title = AnsiGenericString::title("Test Title");
-        assert_eq!(&title.to_string(), "\x1B]2;Test Title\x1B\\");
-        idempotent(title)
+    fn title_pre_plain() {
+        let unstyled = AnsiGenericString::title("hello");
+        let after = Style::default().paint(" After is Plain.");
+
+        // does not introduce spurious SGR codes (reset or otherwise) adjacent
+        // to plain strings
+        let joined = AnsiStrings(&[unstyled.clone(), after.clone()]).to_string();
+        let required = format!("{}{}", unstyled, after);
+        assert_required(joined, required, None);
+    }
+
+    #[test]
+    fn title_post_plain() {
+        let unstyled = AnsiGenericString::title("hello");
+        let before = Style::default().paint("Before is Plain. ");
+
+        // does not introduce spurious SGR codes (reset or otherwise) adjacent
+        // to plain strings
+        let joined = AnsiStrings(&[before.clone(), unstyled.clone()]).to_string();
+        let required = format!("{}{}", before.clone(), unstyled);
+        assert_required(joined, required, None);
+    }
+
+    #[test]
+    fn title_middle_plain() {
+        let unstyled = AnsiGenericString::title("hello");
+        let after = Style::default().paint(" After is Plain.");
+        let before = Style::default().paint("Before is Plain. ");
+
+        // does not introduce spurious SGR codes (reset or otherwise) adjacent
+        // to plain strings
+        let joined = AnsiStrings(&[before.clone(), unstyled.clone(), after.clone()]).to_string();
+        let required = format!("{}{}{}", before, unstyled, after);
+        assert_required(joined, required, None);
+    }
+
+    #[test]
+    fn title_pre_styled() {
+        let unstyled = AnsiGenericString::title("hello");
+        let after_g = Green.paint(" After is Green.");
+
+        // Check that RESET does not follow unstyled
+        let joined = AnsiStrings(&[unstyled.clone(), after_g.clone()]).to_string();
+        let required = format!("{}{}", unstyled, {
+            format_args!(
+                "{}{}{}",
+                after_g.style.prefix(),
+                after_g.content.to_string(),
+                after_g.style.suffix()
+            )
+        });
+        assert_required(joined, required, None);
+    }
+
+    #[test]
+    fn title_post_styled() {
+        let unstyled = AnsiGenericString::title("hello");
+        let before_g = Green.paint("Before is Green.");
+
+        // Check that reset precedes unstyled, but does not follow it
+        let joined = AnsiStrings(&[before_g.clone(), unstyled.clone()]).to_string();
+        let required = format!(
+            "{}{}",
+            format_args!(
+                "{}{}{}",
+                before_g.style.prefix().to_string(),
+                before_g.content.to_string(),
+                before_g.style.suffix().to_string()
+            ),
+            unstyled
+        );
+        assert_required(joined, required, None);
+    }
+
+    #[test]
+    fn title_middle_styled() {
+        let unstyled = AnsiGenericString::title("hello");
+        let before_g = Green.paint("Before is Green.");
+        let after_g = Green.paint(" After is Green.");
+
+        let joined =
+            AnsiStrings(&[before_g.clone(), unstyled.clone(), after_g.clone()]).to_string();
+        let required = format!(
+            "{}{}{}",
+            format_args!(
+                "{}{}{}",
+                before_g.style.prefix().to_string(),
+                before_g.content.to_string(),
+                before_g.style.suffix().to_string()
+            ),
+            unstyled,
+            format_args!(
+                "{}{}{}",
+                after_g.style.prefix(),
+                after_g.content.to_string(),
+                after_g.style.suffix()
+            )
+        );
+        assert_required(joined, required, None);
     }
 
     #[test]
@@ -702,7 +743,54 @@ mod tests {
     }
 
     #[test]
-    fn hyperlinks() {
+    fn hperlinks_link_only() {
+        let link = Blue
+            .underline()
+            .paint("Link to example.com.")
+            .hyperlink("https://example.com");
+        dbg!("link: {:?}", &link);
+        // Assemble with link by itself
+        let joined = AnsiStrings(&[link.clone()]).to_string();
+        #[cfg(feature = "gnu_legacy")]
+        assert_eq!(joined, format!("\x1B[04;34m\x1B]8;;https://example.com\x1B\\Link to example.com.\x1B]8;;\x1B\\\x1B[0m"));
+        #[cfg(not(feature = "gnu_legacy"))]
+        assert_eq!(joined, format!("\x1B[4;34m\x1B]8;;https://example.com\x1B\\Link to example.com.\x1B]8;;\x1B\\\x1B[0m"));
+    }
+
+    #[test]
+    fn hyperlinks_link_first() {
+        let link = Blue
+            .underline()
+            .paint("Link to example.com.")
+            .hyperlink("https://example.com");
+        dbg!("link: {:?}", &link);
+        let after = Green.paint(" After link.");
+        // Assemble with link first
+        let joined = AnsiStrings(&[link.clone(), after.clone()]).to_string();
+        #[cfg(feature = "gnu_legacy")]
+        assert_eq!(joined, format!("\x1B[04;34m\x1B]8;;https://example.com\x1B\\Link to example.com.\x1B]8;;\x1B\\\x1B[0m\x1B[32m After link.\x1B[0m"));
+        #[cfg(not(feature = "gnu_legacy"))]
+        assert_eq!(joined, format!("\x1B[4;34m\x1B]8;;https://example.com\x1B\\Link to example.com.\x1B]8;;\x1B\\\x1B[0m\x1B[32m After link.\x1B[0m"));
+    }
+
+    #[test]
+    fn hyperlinks_link_last() {
+        let before = Green.paint("Before link. ");
+        let link = Blue
+            .underline()
+            .paint("Link to example.com.")
+            .hyperlink("https://example.com");
+        dbg!("link: {:?}", &link);
+        // Assemble with link at the end
+        let joined = AnsiStrings(&[before.clone(), link.clone()]).to_string();
+        #[cfg(feature = "gnu_legacy")]
+        assert_eq!(joined, format!("\x1B[32mBefore link. \x1B[04;34m\x1B]8;;https://example.com\x1B\\Link to example.com.\x1B]8;;\x1B\\\x1B[0m"));
+        #[cfg(not(feature = "gnu_legacy"))]
+        assert_eq!(joined, format!("\x1B[32mBefore link. \x1B[4;34m\x1B]8;;https://example.com\x1B\\Link to example.com.\x1B]8;;\x1B\\\x1B[0m"));
+    }
+
+    #[test]
+    fn hyperlinks_link_in_middle() {
         let before = Green.paint("Before link. ");
         let link = Blue
             .underline()
@@ -710,33 +798,12 @@ mod tests {
             .hyperlink("https://example.com");
         dbg!("link: {:?}", &link);
         let after = Green.paint(" After link.");
-
-        // Assemble with link by itself
-        let joined = AnsiStrings(&[link.clone()]).to_string();
-        #[cfg(feature = "gnu_legacy")]
-        assert_eq!(joined, format!("\x1B[04;34m\x1B]8;;https://example.com\x1B\\Link to example.com.\x1B]8;;\x1B\\\x1B[0m"));
-        #[cfg(not(feature = "gnu_legacy"))]
-        assert_eq!(joined, format!("\x1B[4;34m\x1B]8;;https://example.com\x1B\\Link to example.com.\x1B]8;;\x1B\\\x1B[0m"));
-
+        dbg!("link: {:?}", &link);
         // Assemble with link in the middle
         let joined = AnsiStrings(&[before.clone(), link.clone(), after.clone()]).to_string();
         #[cfg(feature = "gnu_legacy")]
         assert_eq!(joined, format!("\x1B[32mBefore link. \x1B[04;34m\x1B]8;;https://example.com\x1B\\Link to example.com.\x1B]8;;\x1B\\\x1B[0m\x1B[32m After link.\x1B[0m"));
         #[cfg(not(feature = "gnu_legacy"))]
         assert_eq!(joined, format!("\x1B[32mBefore link. \x1B[4;34m\x1B]8;;https://example.com\x1B\\Link to example.com.\x1B]8;;\x1B\\\x1B[0m\x1B[32m After link.\x1B[0m"));
-
-        // Assemble with link first
-        let joined = AnsiStrings(&[link.clone(), after.clone()]).to_string();
-        #[cfg(feature = "gnu_legacy")]
-        assert_eq!(joined, format!("\x1B[04;34m\x1B]8;;https://example.com\x1B\\Link to example.com.\x1B]8;;\x1B\\\x1B[0m\x1B[32m After link.\x1B[0m"));
-        #[cfg(not(feature = "gnu_legacy"))]
-        assert_eq!(joined, format!("\x1B[4;34m\x1B]8;;https://example.com\x1B\\Link to example.com.\x1B]8;;\x1B\\\x1B[0m\x1B[32m After link.\x1B[0m"));
-
-        // Assemble with link at the end
-        let joined = AnsiStrings(&[before.clone(), link.clone()]).to_string();
-        #[cfg(feature = "gnu_legacy")]
-        assert_eq!(joined, format!("\x1B[32mBefore link. \x1B[04;34m\x1B]8;;https://example.com\x1B\\Link to example.com.\x1B]8;;\x1B\\\x1B[0m"));
-        #[cfg(not(feature = "gnu_legacy"))]
-        assert_eq!(joined, format!("\x1B[32mBefore link. \x1B[4;34m\x1B]8;;https://example.com\x1B\\Link to example.com.\x1B]8;;\x1B\\\x1B[0m"));
     }
 }
