@@ -253,19 +253,15 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericString<'a, S> {
 /// A set of `AnsiGenericStrings`s collected together, in order to be
 /// written with a minimum of control characters.
 pub struct AnsiGenericStrings<'a, S: 'a + ToOwned + ?Sized> {
-    contents: Cow<'a, [Content<'a, S>]>,
+    strings: Cow<'a, [AnsiGenericString<'a, S>]>,
     style_updates: Cow<'a, [StyleUpdate]>,
-    oscontrols: Cow<'a, [Option<OSControl<'a, S>>]>,
-    current_style: Style,
 }
 
 impl<'a, S: 'a + ToOwned + ?Sized> Clone for AnsiGenericStrings<'a, S> {
     fn clone(&self) -> Self {
         Self {
-            contents: self.contents.clone(),
             style_updates: self.style_updates.clone(),
-            oscontrols: self.oscontrols.clone(),
-            current_style: self.current_style,
+            strings: self.strings.clone(),
         }
     }
 }
@@ -285,9 +281,8 @@ where
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("AnsiGenericStrings")
-            .field("contents", &self.contents)
+            .field("strings", &self.strings)
             .field("style_updates", &self.style_updates)
-            .field("oscontrols", &self.oscontrols)
             .finish()
     }
 }
@@ -296,17 +291,15 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
     /// Create empty sequence with the given capacity.
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            contents: Vec::with_capacity(capacity).into(),
+            strings: Vec::with_capacity(capacity).into(),
             style_updates: Vec::with_capacity(capacity).into(),
-            oscontrols: Vec::with_capacity(capacity).into(),
-            current_style: Style::default(),
         }
     }
 
-    fn push(&mut self, s: &AnsiGenericString<'a, S>) {
-        let len = self.push_content(s.content().clone());
-        self.push_style(*s.style(), len - 1);
-        self.push_oscontrol(s.oscontrol().clone());
+    #[inline]
+    pub fn push(&mut self, s: &AnsiGenericString<'a, S>) {
+        self.strings.to_mut().push(s.clone());
+        self.push_style(*s.style(), self.strings.len() - 1);
     }
 
     fn push_style(&mut self, next: Style, begins_at: usize) {
@@ -322,18 +315,6 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
             begins_at,
             style_delta: command,
         });
-        self.current_style = next;
-    }
-
-    #[inline]
-    fn push_oscontrol(&mut self, oscontrol: Option<OSControl<'a, S>>) {
-        self.oscontrols.to_mut().push(oscontrol)
-    }
-
-    #[inline]
-    fn push_content(&mut self, content: Content<'a, S>) -> usize {
-        self.contents.to_mut().push(content);
-        self.contents.len()
     }
 
     fn write_iter(&self) -> WriteIter<'_, 'a, S> {
@@ -346,8 +327,7 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
             },
             content_iter: ContentIter {
                 cursor: 0,
-                contents: &self.contents,
-                oscontrols: &self.oscontrols,
+                strings: &self.strings,
             },
         }
     }
@@ -404,21 +384,17 @@ impl<'b> Iterator for StyleIter<'b> {
 /// An iterator over the contents in an [`AnsiGenericStrings`] sequence.
 pub struct ContentIter<'b, 'a, S: 'a + ToOwned + ?Sized> {
     cursor: usize,
-    contents: &'b [Content<'a, S>],
-    oscontrols: &'b [Option<OSControl<'a, S>>],
+    strings: &'b [AnsiGenericString<'a, S>],
 }
 
 impl<'b, 'a, S: 'a + ToOwned + ?Sized> Iterator for ContentIter<'b, 'a, S> {
     type Item = (Content<'a, S>, Option<OSControl<'a, S>>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        let r = self.contents.get(self.cursor).map(|content| {
-            (
-                content.clone(),
-                self.oscontrols.get(self.cursor).cloned().flatten(),
-            )
-        });
-
+        let r = self
+            .strings
+            .get(self.cursor)
+            .map(|s| (s.content.clone(), s.oscontrol.clone()));
         if r.is_some() {
             self.cursor += 1;
         }
