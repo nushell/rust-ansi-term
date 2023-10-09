@@ -129,16 +129,16 @@ impl<'a, W: AnyWrite + ?Sized, S: ?Sized + ToOwned + AsRef<W::Buf>> StrLike<'a, 
 /// * anything that implements [`AsRef<AnyWrite::Buf>`] (conveniently
 ///   stored in either reference or owned format within a [`Cow`]).
 /// * an [`AnsiGenericString`]
-pub enum Content<'b, 'a, S: ?Sized + ToOwned> {
+pub enum Content<'a, S: ?Sized + ToOwned> {
     /// Content is [`fmt::Arguments`].
     FmtArgs(fmt::Arguments<'a>),
     /// Content is a reference to something that implements [`ToOwned`], or the
     /// [`ToOwned::Owned`] variant specified by that implementation.
     StrLike(Cow<'a, S>),
-    Ansi(AnsiGenericStrings<'b, 'a, S>),
+    Ansi(AnsiGenericStrings<'a, S>),
 }
 
-impl<'b, 'a, S: ?Sized + ToOwned> ToString for Content<'b, 'a, S>
+impl<'a, S: ?Sized + ToOwned> ToString for Content<'a, S>
 where
     S: AsRef<str>,
 {
@@ -152,14 +152,14 @@ where
             }
             Content::Ansi(x) => {
                 let mut s = String::new();
-                x.write_to_any(fmt_write!(&mut s));
+                x.write_to_any(fmt_write!(&mut s)).unwrap();
                 s
             }
         }
     }
 }
 
-impl<'b, 'a, S: ?Sized + ToOwned> Clone for Content<'b, 'a, S> {
+impl<'a, S: ?Sized + ToOwned> Clone for Content<'a, S> {
     fn clone(&self) -> Self {
         match self {
             Self::FmtArgs(x) => Self::FmtArgs(*x),
@@ -169,7 +169,7 @@ impl<'b, 'a, S: ?Sized + ToOwned> Clone for Content<'b, 'a, S> {
     }
 }
 
-impl<'b, 'a, S: ?Sized + ToOwned> Debug for Content<'b, 'a, S>
+impl<'a, S: ?Sized + ToOwned> Debug for Content<'a, S>
 where
     S: fmt::Debug,
 {
@@ -182,7 +182,7 @@ where
     }
 }
 
-impl<'b, 'a, S: ?Sized + ToOwned> Content<'b, 'a, S> {
+impl<'a, S: ?Sized + ToOwned> Content<'a, S> {
     /// Write content to the given writer.
     pub fn write_to<T: ?Sized + ToOwned, W: AnyWrite<Buf = T> + ?Sized>(
         &self,
@@ -200,7 +200,7 @@ impl<'b, 'a, S: ?Sized + ToOwned> Content<'b, 'a, S> {
     }
 }
 
-impl<'b, 'a, S: ?Sized + ToOwned, T: ?Sized + ToOwned> From<&'a T> for Content<'b, 'a, S>
+impl<'a, S: ?Sized + ToOwned, T: ?Sized + ToOwned> From<&'a T> for Content<'a, S>
 where
     T: AsRef<S>,
 {
@@ -209,13 +209,13 @@ where
     }
 }
 
-impl<'b, 'a, S: ?Sized + ToOwned> From<fmt::Arguments<'a>> for Content<'b, 'a, S> {
+impl<'a, S: ?Sized + ToOwned> From<fmt::Arguments<'a>> for Content<'a, S> {
     fn from(args: fmt::Arguments<'a>) -> Self {
         Content::FmtArgs(args)
     }
 }
 
-impl<'b, 'a> From<String> for Content<'b, 'a, str> {
+impl<'a> From<String> for Content<'a, str> {
     fn from(s: String) -> Self {
         Content::StrLike(Cow::Owned(s))
     }

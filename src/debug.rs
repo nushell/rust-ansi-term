@@ -238,12 +238,9 @@ pub trait DebugStylePaint: Clone + Copy {
 
     /// Paints the given text with this style, returning an ANSI string.
     #[inline]
-    fn style_input<'b, 'a, I, S: 'a + ToOwned + ?Sized>(
-        &self,
-        input: I,
-    ) -> AnsiGenericString<'b, 'a, S>
+    fn style_input<'a, I, S: 'a + ToOwned + ?Sized>(&self, input: I) -> AnsiGenericString<'a, S>
     where
-        I: Into<Content<'b, 'a, S>>,
+        I: Into<Content<'a, S>>,
     {
         AnsiGenericString::new(self.into_style(), input.into(), None)
     }
