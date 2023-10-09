@@ -1,7 +1,9 @@
+use crate::ansi::RESET;
 use crate::difference::StyleDelta;
 use crate::style::{Color, Style};
 use crate::write::{AnyWrite, Content, StrLike, WriteResult};
 use crate::{fmt_write, write_any_fmt, write_any_str};
+use std::borrow::Cow;
 use std::fmt::{self, Debug};
 use std::io;
 
@@ -251,10 +253,28 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericString<'a, S> {
 /// A set of `AnsiGenericStrings`s collected together, in order to be
 /// written with a minimum of control characters.
 pub struct AnsiGenericStrings<'a, S: 'a + ToOwned + ?Sized> {
-    contents: Vec<Content<'a, S>>,
-    style_updates: Vec<StyleUpdate>,
-    oscontrols: Vec<Option<OSControl<'a, S>>>,
+    contents: Cow<'a, [Content<'a, S>]>,
+    style_updates: Cow<'a, [StyleUpdate]>,
+    oscontrols: Cow<'a, [Option<OSControl<'a, S>>]>,
     current_style: Style,
+}
+
+impl<'a, S: 'a + ToOwned + ?Sized> Clone for AnsiGenericStrings<'a, S> {
+    fn clone(&self) -> Self {
+        Self {
+            contents: self.contents.clone(),
+            style_updates: self.style_updates.clone(),
+            oscontrols: self.oscontrols.clone(),
+            current_style: self.current_style.clone(),
+        }
+    }
+}
+
+#[macro_export]
+macro_rules! ansi_generics {
+    ($fmt_s:literal, $($args:tt)*) => {
+        unimplemented!()
+    };
 }
 
 /// We manually implement [`Debug`](fmt::Debug) so that it is specifically only
@@ -276,9 +296,9 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
     /// Create empty sequence with the given capacity.
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            contents: Vec::with_capacity(capacity),
-            style_updates: Vec::with_capacity(capacity),
-            oscontrols: Vec::with_capacity(capacity),
+            contents: Vec::with_capacity(capacity).into(),
+            style_updates: Vec::with_capacity(capacity).into(),
+            oscontrols: Vec::with_capacity(capacity).into(),
             current_style: Style::default(),
         }
     }
@@ -298,7 +318,7 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
             .style_delta
             .delta_next(next);
 
-        self.style_updates.push(StyleUpdate {
+        self.style_updates.to_mut().push(StyleUpdate {
             begins_at,
             style_delta: command,
         });
@@ -307,12 +327,12 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
 
     #[inline]
     fn push_oscontrol(&mut self, oscontrol: Option<OSControl<'a, S>>) {
-        self.oscontrols.push(oscontrol)
+        self.oscontrols.to_mut().push(oscontrol)
     }
 
     #[inline]
     fn push_content(&mut self, content: Content<'a, S>) -> usize {
-        self.contents.push(content);
+        self.contents.to_mut().push(content);
         self.contents.len()
     }
 
@@ -336,7 +356,7 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
 /// Iterator over the minimal styles (see [`StyleDelta`]) of an [`AnsiGenericStrings`] sequence.
 pub struct StyleIter<'a> {
     cursor: usize,
-    instructions: &'a Vec<StyleUpdate>,
+    instructions: &'a [StyleUpdate],
     next_update: Option<StyleUpdate>,
     current: Option<StyleUpdate>,
 }
@@ -384,8 +404,8 @@ impl<'b> Iterator for StyleIter<'b> {
 /// An iterator over the contents in an [`AnsiGenericStrings`] sequence.
 pub struct ContentIter<'b, 'a: 'b, S: 'a + ToOwned + ?Sized> {
     cursor: usize,
-    contents: &'b Vec<Content<'a, S>>,
-    oscontrols: &'b Vec<Option<OSControl<'a, S>>>,
+    contents: &'b [Content<'a, S>],
+    oscontrols: &'b [Option<OSControl<'a, S>>],
 }
 
 impl<'b, 'a: 'b, S: 'a + ToOwned + ?Sized> Iterator for ContentIter<'b, 'a, S> {
@@ -584,10 +604,7 @@ impl<'a> AnsiByteStrings<'a> {
     }
 }
 
-impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S>
-where
-    S: fmt::Debug,
-{
+impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
     /// Write this sequence to the given [`AnyWrite`] implementor.
     pub fn write_to_any<W: AnyWrite + ?Sized>(&'a self, w: &mut W) -> WriteResult<W::Error>
     where
@@ -611,7 +628,7 @@ where
             dbg!(last_is_plain);
             Ok(())
         } else {
-            Style::default().prefix_with_reset().write_prefix(w)
+            w.write_any_str(RESET.as_ref())
         }
     }
 }

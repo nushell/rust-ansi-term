@@ -3,6 +3,8 @@ use std::fmt;
 use std::fmt::Debug;
 use std::io;
 
+use crate::AnsiGenericStrings;
+
 /// Helper to alias  over [`fmt::Result`], or [`io::Result`] depending on the
 /// error type used ([`fmt::Error`] or [`io::Error`]).
 pub type WriteResult<E> = Result<(), E>;
@@ -133,6 +135,7 @@ pub enum Content<'a, S: ?Sized + ToOwned> {
     /// Content is a reference to something that implements [`ToOwned`], or the
     /// [`ToOwned::Owned`] variant specified by that implementation.
     StrLike(Cow<'a, S>),
+    Ansi(AnsiGenericStrings<'a, S>),
 }
 
 impl<'a, S: ?Sized + ToOwned> ToString for Content<'a, S>
@@ -147,6 +150,11 @@ where
                 x.as_ref().write_str_to(fmt_write!(&mut s)).unwrap();
                 s
             }
+            Content::Ansi(x) => {
+                let mut s = String::new();
+                x.write_to_any(fmt_write!(&mut s));
+                s
+            }
         }
     }
 }
@@ -156,6 +164,7 @@ impl<'a, S: ?Sized + ToOwned> Clone for Content<'a, S> {
         match self {
             Self::FmtArgs(x) => Self::FmtArgs(*x),
             Self::StrLike(x) => Self::StrLike(x.clone()),
+            Self::Ansi(x) => Self::Ansi(x.clone()),
         }
     }
 }
