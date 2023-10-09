@@ -6,6 +6,7 @@ use crate::{fmt_write, write_any_fmt, write_any_str};
 use std::borrow::Cow;
 use std::fmt::{self, Debug};
 use std::io;
+use std::slice::Iter;
 
 /// Represents various features that require "OS Control" ANSI codes.
 pub enum OSControl<'a, S: 'a + ToOwned + ?Sized> {
@@ -255,6 +256,18 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericString<'a, S> {
 pub struct AnsiGenericStrings<'a, S: 'a + ToOwned + ?Sized> {
     strings: Cow<'a, [AnsiGenericString<'a, S>]>,
     style_updates: Cow<'a, [StyleUpdate]>,
+}
+
+pub struct GenericStringsIter<'b, 'a, S: 'a + ToOwned + ?Sized, I: Iterator<Item = > {
+    iter: I<'b, AnsiGenericString<'a, S>>,
+}
+
+impl<'b, 'a, S: 'a + ToOwned + ?Sized> Iterator for GenericStringsIter<'b, 'a, S> {
+    type Item = AnsiGenericString<'a, S>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next()
+    }
 }
 
 impl<'a, S: 'a + ToOwned + ?Sized> Clone for AnsiGenericStrings<'a, S> {
