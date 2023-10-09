@@ -8,19 +8,19 @@ use std::fmt::{self, Debug};
 use std::io;
 
 /// Represents various features that require "OS Control" ANSI codes.
-pub enum OSControl<'a, S: 'a + ToOwned + ?Sized> {
+pub enum OSControl<'b, 'a, S: 'a + ToOwned + ?Sized> {
     /// Set the title of a terminal window.
     Title,
     /// Create a clickable-link.
     Link {
         /// The url underlying the clickable link.
-        url: Content<'a, S>,
+        url: Content<'b, 'a, S>,
     },
 }
 
 /// We manually implement [`Debug`](fmt::Debug) so that it is specifically only
 /// implemented when `S` also implements `Debug`.
-impl<'a, S: 'a + ToOwned + ?Sized> Debug for OSControl<'a, S>
+impl<'b, 'a, S: 'a + ToOwned + ?Sized> Debug for OSControl<'b, 'a, S>
 where
     S: fmt::Debug,
 {
@@ -32,7 +32,7 @@ where
     }
 }
 
-impl<'a, S: 'a + ToOwned + ?Sized> Clone for OSControl<'a, S> {
+impl<'b, 'a, S: 'a + ToOwned + ?Sized> Clone for OSControl<'b, 'a, S> {
     fn clone(&self) -> Self {
         match self {
             Self::Link { url: u } => Self::Link { url: u.clone() },
@@ -44,15 +44,15 @@ impl<'a, S: 'a + ToOwned + ?Sized> Clone for OSControl<'a, S> {
 /// An `AnsiGenericString` includes a generic string type and a `Style` to
 /// display that string.  `AnsiString` and `AnsiByteString` are aliases for
 /// this type on `str` and `\[u8]`, respectively.
-pub struct AnsiGenericString<'a, S: 'a + ToOwned + ?Sized> {
+pub struct AnsiGenericString<'b, 'a, S: 'a + ToOwned + ?Sized> {
     pub(crate) style: Style,
-    pub(crate) content: Content<'a, S>,
-    oscontrol: Option<OSControl<'a, S>>,
+    pub(crate) content: Content<'b, 'a, S>,
+    oscontrol: Option<OSControl<'b, 'a, S>>,
 }
 
 /// We manually implement [`Debug`](fmt::Debug) so that it is specifically only
 /// implemented when `S` also implements `Debug`.
-impl<'a, S: 'a + ToOwned + ?Sized> Debug for AnsiGenericString<'a, S>
+impl<'b, 'a, S: 'a + ToOwned + ?Sized> Debug for AnsiGenericString<'b, 'a, S>
 where
     S: fmt::Debug,
 {
@@ -76,8 +76,8 @@ where
 /// let clone_string = plain_string.clone();
 /// assert_eq!(clone_string.to_string(), plain_string.to_string());
 /// ```
-impl<'a, S: 'a + ToOwned + ?Sized> Clone for AnsiGenericString<'a, S> {
-    fn clone(&self) -> AnsiGenericString<'a, S> {
+impl<'b, 'a, S: 'a + ToOwned + ?Sized> Clone for AnsiGenericString<'b, 'a, S> {
+    fn clone(&self) -> AnsiGenericString<'b, 'a, S> {
         AnsiGenericString {
             style: self.style,
             content: self.content.clone(),
@@ -93,8 +93,8 @@ impl<'a, S: 'a + ToOwned + ?Sized> Clone for AnsiGenericString<'a, S> {
 // constraint on the S type parameter (generated using --pretty=expanded):
 //
 //                  ↓_________________↓
-//     impl <'a, S: ::std::clone::Clone + 'a + ToOwned + ?Sized> ::std::clone::Clone
-//     for ANSIGenericString<'a, S> where
+//     impl <'b, 'a, S: ::std::clone::Clone + 'a + ToOwned + ?Sized> ::std::clone::Clone
+//     for ANSIGenericString<'b, 'a, S> where
 //     <S as ToOwned>::Owned: fmt::Debug { ... }
 //
 // This resulted in compile errors when you tried to derive Clone on a type
@@ -107,7 +107,7 @@ impl<'a, S: 'a + ToOwned + ?Sized> Clone for AnsiGenericString<'a, S> {
 //
 // The hand-written impl above can ignore that constraint and still compile.
 
-impl<'a, S: 'a + ToOwned + ?Sized> From<&'a S> for AnsiGenericString<'a, S>
+impl<'b, 'a, S: 'a + ToOwned + ?Sized> From<&'a S> for AnsiGenericString<'b, 'a, S>
 where
     S: AsRef<S>,
 {
@@ -120,7 +120,7 @@ where
     }
 }
 
-impl<'a, S: 'a + ToOwned + ?Sized> From<fmt::Arguments<'a>> for AnsiGenericString<'a, S> {
+impl<'b, 'a, S: 'a + ToOwned + ?Sized> From<fmt::Arguments<'a>> for AnsiGenericString<'b, 'a, S> {
     fn from(args: fmt::Arguments<'a>) -> Self {
         AnsiGenericString {
             style: Style::default(),
@@ -151,15 +151,19 @@ impl<'a, S: 'a + ToOwned + ?Sized> From<fmt::Arguments<'a>> for AnsiGenericStrin
 ///
 /// let plain_string = AnsiString::from("a plain string");
 /// ```
-pub type AnsiString<'a> = AnsiGenericString<'a, str>;
+pub type AnsiString<'b, 'a> = AnsiGenericString<'b, 'a, str>;
 
 /// An `AnsiByteString` represents a formatted series of bytes.  Use
 /// `AnsiByteString` when styling text with an unknown encoding.
-pub type AnsiByteString<'a> = AnsiGenericString<'a, [u8]>;
+pub type AnsiByteString<'b, 'a> = AnsiGenericString<'b, 'a, [u8]>;
 
-impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericString<'a, S> {
+impl<'b, 'a, S: 'a + ToOwned + ?Sized> AnsiGenericString<'b, 'a, S> {
     /// Create an [`AnsiByteString`] from the given data.
-    pub fn new(style: Style, content: Content<'a, S>, oscontrol: Option<OSControl<'a, S>>) -> Self {
+    pub fn new(
+        style: Style,
+        content: Content<'b, 'a, S>,
+        oscontrol: Option<OSControl<'b, 'a, S>>,
+    ) -> Self {
         Self {
             style,
             content,
@@ -178,13 +182,13 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericString<'a, S> {
     }
 
     /// Get the (text) content in this generic string.
-    pub fn content(&self) -> &Content<'a, S> {
+    pub fn content(&self) -> &Content<'b, 'a, S> {
         &self.content
     }
 
     /// Get the [`OSControl`] settings associated with this generic string, if
     /// any exist.
-    pub fn oscontrol(&self) -> &Option<OSControl<'a, S>> {
+    pub fn oscontrol(&self) -> &Option<OSControl<'b, 'a, S>> {
         &self.oscontrol
     }
 
@@ -205,7 +209,7 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericString<'a, S> {
     /// Should produce an empty line but set the terminal title.
     pub fn title<I>(s: I) -> Self
     where
-        I: Into<Content<'a, S>>,
+        I: Into<Content<'b, 'a, S>>,
     {
         Self {
             style: Style::default(),
@@ -232,14 +236,14 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericString<'a, S> {
     /// that support it, is a clickable hyperlink.
     pub fn hyperlink<I>(mut self, url: I) -> Self
     where
-        I: Into<Content<'a, S>>,
+        I: Into<Content<'b, 'a, S>>,
     {
         self.oscontrol = Some(OSControl::Link { url: url.into() });
         self
     }
 
     /// Get any URL associated with the string
-    pub fn url_string(&self) -> Option<&Content<'_, S>> {
+    pub fn url_string(&self) -> Option<&Content<'b, 'a, S>> {
         self.oscontrol.as_ref().and_then(|osc| {
             if let OSControl::Link { url } = osc {
                 Some(url)
@@ -252,14 +256,20 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericString<'a, S> {
 
 /// A set of `AnsiGenericStrings`s collected together, in order to be
 /// written with a minimum of control characters.
-pub struct AnsiGenericStrings<'a, S: 'a + ToOwned + ?Sized> {
-    contents: Cow<'a, [Content<'a, S>]>,
-    style_updates: Cow<'a, [StyleUpdate]>,
-    oscontrols: Cow<'a, [Option<OSControl<'a, S>>]>,
+pub struct AnsiGenericStrings<'b, 'a, S: 'a + ToOwned + ?Sized>
+where
+    'a: 'b,
+{
+    contents: Cow<'b, [Content<'b, 'a, S>]>,
+    style_updates: Cow<'b, [StyleUpdate]>,
+    oscontrols: Cow<'b, [Option<OSControl<'b, 'a, S>>]>,
     current_style: Style,
 }
 
-impl<'a, S: 'a + ToOwned + ?Sized> Clone for AnsiGenericStrings<'a, S> {
+impl<'b, 'a, S: 'a + ToOwned + ?Sized> Clone for AnsiGenericStrings<'b, 'a, S>
+where
+    'a: 'b,
+{
     fn clone(&self) -> Self {
         Self {
             contents: self.contents.clone(),
@@ -279,9 +289,11 @@ macro_rules! ansi_generics {
 
 /// We manually implement [`Debug`](fmt::Debug) so that it is specifically only
 /// implemented when `S` also implements `Debug`.
-impl<'a, S: 'a + ToOwned + ?Sized> Debug for AnsiGenericStrings<'a, S>
+impl<'b, 'a, S: 'a + ToOwned + ?Sized> Debug for AnsiGenericStrings<'b, 'a, S>
 where
     S: fmt::Debug,
+
+    'a: 'b,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("AnsiGenericStrings")
@@ -292,7 +304,10 @@ where
     }
 }
 
-impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
+impl<'b, 'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'b, 'a, S>
+where
+    'a: 'b,
+{
     /// Create empty sequence with the given capacity.
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
@@ -303,7 +318,7 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
         }
     }
 
-    fn push(&mut self, s: &AnsiGenericString<'a, S>) {
+    fn push(&mut self, s: &AnsiGenericString<'b, 'a, S>) {
         let len = self.push_content(s.content().clone());
         self.push_style(*s.style(), len - 1);
         self.push_oscontrol(s.oscontrol().clone());
@@ -326,17 +341,17 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
     }
 
     #[inline]
-    fn push_oscontrol(&mut self, oscontrol: Option<OSControl<'a, S>>) {
+    fn push_oscontrol(&mut self, oscontrol: Option<OSControl<'b, 'a, S>>) {
         self.oscontrols.to_mut().push(oscontrol)
     }
 
     #[inline]
-    fn push_content(&mut self, content: Content<'a, S>) -> usize {
+    fn push_content(&mut self, content: Content<'b, 'a, S>) -> usize {
         self.contents.to_mut().push(content);
         self.contents.len()
     }
 
-    fn write_iter(&self) -> WriteIter<'_, '_, S> {
+    fn write_iter(&'b self) -> WriteIter<'b, 'a, S> {
         WriteIter {
             style_iter: StyleIter {
                 cursor: 0,
@@ -354,9 +369,9 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
 }
 
 /// Iterator over the minimal styles (see [`StyleDelta`]) of an [`AnsiGenericStrings`] sequence.
-pub struct StyleIter<'a> {
+pub struct StyleIter<'c> {
     cursor: usize,
-    instructions: &'a [StyleUpdate],
+    instructions: &'c [StyleUpdate],
     next_update: Option<StyleUpdate>,
     current: Option<StyleUpdate>,
 }
@@ -404,12 +419,12 @@ impl<'b> Iterator for StyleIter<'b> {
 /// An iterator over the contents in an [`AnsiGenericStrings`] sequence.
 pub struct ContentIter<'b, 'a: 'b, S: 'a + ToOwned + ?Sized> {
     cursor: usize,
-    contents: &'b [Content<'a, S>],
-    oscontrols: &'b [Option<OSControl<'a, S>>],
+    contents: &'b [Content<'b, 'a, S>],
+    oscontrols: &'b [Option<OSControl<'b, 'a, S>>],
 }
 
 impl<'b, 'a: 'b, S: 'a + ToOwned + ?Sized> Iterator for ContentIter<'b, 'a, S> {
-    type Item = (Content<'a, S>, Option<OSControl<'a, S>>);
+    type Item = (Content<'b, 'a, S>, Option<OSControl<'b, 'a, S>>);
 
     fn next(&mut self) -> Option<Self::Item> {
         let r = self.contents.get(self.cursor).map(|content| {
@@ -428,13 +443,19 @@ impl<'b, 'a: 'b, S: 'a + ToOwned + ?Sized> Iterator for ContentIter<'b, 'a, S> {
 
 /// An iterator over the data required to write out an [`AnsiGenericStrings`]
 /// sequence to an [`AnyWrite`] implementor.
-pub struct WriteIter<'b, 'a, S: 'a + ToOwned + ?Sized> {
-    style_iter: StyleIter<'a>,
+pub struct WriteIter<'b, 'a, S: 'a + ToOwned + ?Sized>
+where
+    'a: 'b,
+{
+    style_iter: StyleIter<'b>,
     content_iter: ContentIter<'b, 'a, S>,
 }
 
-impl<'b, 'a, S: 'a + ToOwned + ?Sized> Iterator for WriteIter<'b, 'a, S> {
-    type Item = (StyleDelta, Content<'a, S>, Option<OSControl<'a, S>>);
+impl<'b, 'a, S: 'a + ToOwned + ?Sized> Iterator for WriteIter<'b, 'a, S>
+where
+    'a: 'b,
+{
+    type Item = (StyleDelta, Content<'b, 'a, S>, Option<OSControl<'b, 'a, S>>);
 
     fn next(&mut self) -> Option<Self::Item> {
         let (content, oscontrol) = self.content_iter.next()?;
@@ -443,10 +464,13 @@ impl<'b, 'a, S: 'a + ToOwned + ?Sized> Iterator for WriteIter<'b, 'a, S> {
     }
 }
 
-impl<'a, S: 'a + ToOwned + ?Sized> FromIterator<&'a AnsiGenericString<'a, S>>
-    for AnsiGenericStrings<'a, S>
+impl<'c, 'b, 'a, S: 'a + ToOwned + ?Sized> FromIterator<&'c AnsiGenericString<'b, 'a, S>>
+    for AnsiGenericStrings<'b, 'a, S>
+where
+    'a: 'b,
+    'b: 'c,
 {
-    fn from_iter<Iterable: IntoIterator<Item = &'a AnsiGenericString<'a, S>>>(
+    fn from_iter<Iterable: IntoIterator<Item = &'c AnsiGenericString<'b, 'a, S>>>(
         iter: Iterable,
     ) -> Self {
         let iter = iter.into_iter();
@@ -462,21 +486,21 @@ impl<'a, S: 'a + ToOwned + ?Sized> FromIterator<&'a AnsiGenericString<'a, S>>
 
 /// A set of `AnsiString`s collected together, in order to be written with a
 /// minimum of control characters.
-pub type AnsiStrings<'a> = AnsiGenericStrings<'a, str>;
+pub type AnsiStrings<'b, 'a> = AnsiGenericStrings<'b, 'a, str>;
 
 /// A function to construct an `AnsiStrings` instance.
 #[allow(non_snake_case)]
-pub fn AnsiStrings<'a>(arg: &'a [AnsiString<'a>]) -> AnsiStrings<'a> {
+pub fn AnsiStrings<'b, 'a>(arg: &'a [AnsiString<'b, 'a>]) -> AnsiStrings<'b, 'a> {
     AnsiGenericStrings::from_iter(arg)
 }
 
 /// A set of `AnsiByteString`s collected together, in order to be
 /// written with a minimum of control characters.
-pub type AnsiByteStrings<'a> = AnsiGenericStrings<'a, [u8]>;
+pub type AnsiByteStrings<'b, 'a> = AnsiGenericStrings<'b, 'a, [u8]>;
 
 /// A function to construct an `AnsiByteStrings` instance.
 #[allow(non_snake_case)]
-pub fn AnsiByteStrings<'a>(arg: &'a [AnsiByteString<'a>]) -> AnsiByteStrings<'a> {
+pub fn AnsiByteStrings<'b, 'a>(arg: &'a [AnsiByteString<'b, 'a>]) -> AnsiByteStrings<'b, 'a> {
     AnsiGenericStrings::from_iter(arg)
 }
 
@@ -492,9 +516,12 @@ impl Style {
     /// ```
     #[inline]
     #[must_use]
-    pub fn paint<'a, I, S: 'a + ToOwned + ?Sized>(self, input: I) -> AnsiGenericString<'a, S>
+    pub fn paint<'b, 'a, I, S: 'a + ToOwned + ?Sized>(
+        self,
+        input: I,
+    ) -> AnsiGenericString<'b, 'a, S>
     where
-        I: Into<Content<'a, S>>,
+        I: Into<Content<'b, 'a, S>>,
     {
         AnsiGenericString {
             content: input.into(),
@@ -515,9 +542,12 @@ impl Color {
     /// ```
     #[inline]
     #[must_use]
-    pub fn paint<'a, I, S: 'a + ToOwned + ?Sized>(self, input: I) -> AnsiGenericString<'a, S>
+    pub fn paint<'b, 'a, I, S: 'a + ToOwned + ?Sized>(
+        self,
+        input: I,
+    ) -> AnsiGenericString<'b, 'a, S>
     where
-        I: Into<Content<'a, S>>,
+        I: Into<Content<'b, 'a, S>>,
     {
         AnsiGenericString {
             content: input.into(),
@@ -529,13 +559,13 @@ impl Color {
 
 // ---- writers for individual ANSI strings ----
 
-impl<'a> fmt::Display for AnsiString<'a> {
+impl<'b, 'a> fmt::Display for AnsiString<'b, 'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.write_to_any(fmt_write!(f))
     }
 }
 
-impl<'a> AnsiByteString<'a> {
+impl<'b, 'a> AnsiByteString<'b, 'a> {
     /// Write an `AnsiByteString` to an `io::Write`.  This writes the escape
     /// sequences for the associated `Style` around the bytes.
     pub fn write_to<W: io::Write>(&self, w: &mut W) -> io::Result<()> {
@@ -544,12 +574,12 @@ impl<'a> AnsiByteString<'a> {
     }
 }
 
-impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericString<'a, S> {
+impl<'b, 'a, S: 'a + ToOwned + ?Sized> AnsiGenericString<'b, 'a, S> {
     /// Write only the part of the generic string which lies within its styling
     /// prefix and suffix: its `content` and `oscontrol`.
     pub fn write_inner<W: AnyWrite + ?Sized>(
-        content: &Content<'a, S>,
-        oscontrol: &Option<OSControl<'a, S>>,
+        content: &Content<'b, 'a, S>,
+        oscontrol: &Option<OSControl<'b, 'a, S>>,
         w: &mut W,
     ) -> WriteResult<W::Error>
     where
@@ -587,14 +617,14 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericString<'a, S> {
 
 // ---- writers for combined ANSI strings ----
 
-impl<'a> fmt::Display for AnsiStrings<'a> {
+impl<'b, 'a> fmt::Display for AnsiStrings<'b, 'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let f: &mut dyn fmt::Write = f;
         self.write_to_any(f)
     }
 }
 
-impl<'a> AnsiByteStrings<'a> {
+impl<'b, 'a> AnsiByteStrings<'b, 'a> {
     /// Write `AnsiByteStrings` to an `io::Write`.  This writes the minimal
     /// escape sequences for the associated `Style`s around each set of
     /// bytes.
@@ -604,9 +634,12 @@ impl<'a> AnsiByteStrings<'a> {
     }
 }
 
-impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
+impl<'b, 'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'b, 'a, S>
+where
+    'a: 'b,
+{
     /// Write this sequence to the given [`AnyWrite`] implementor.
-    pub fn write_to_any<W: AnyWrite + ?Sized>(&'a self, w: &mut W) -> WriteResult<W::Error>
+    pub fn write_to_any<W: AnyWrite + ?Sized>(&self, w: &mut W) -> WriteResult<W::Error>
     where
         S: StrLike<'a, W>,
         str: StrLike<'a, W>,
