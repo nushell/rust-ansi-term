@@ -1,17 +1,23 @@
 use crate::difference::StyleDelta;
 use crate::style::{Color, Style};
 use crate::write::{AnyWrite, Content, StrLike, WriteResult};
-use crate::{coerce_fmt_write, write_any_fmt, write_any_str};
+use crate::{fmt_write, write_any_fmt, write_any_str};
 use std::fmt;
 use std::io;
 
+/// Represents various features that require "OS Control" ANSI codes.
 #[derive(Debug)]
 pub enum OSControl<'a, S: 'a + ToOwned + ?Sized>
 where
     S: fmt::Debug,
 {
+    /// Set the title of a terminal window.
     Title,
-    Link { url: Content<'a, S> },
+    /// Create a clickable-link.
+    Link {
+        /// The url underlying the clickable link.
+        url: Content<'a, S>,
+    },
 }
 
 impl<'a, S: 'a + ToOwned + ?Sized> Clone for OSControl<'a, S>
@@ -142,6 +148,7 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericString<'a, S>
 where
     S: fmt::Debug,
 {
+    /// Create an [`AnsiByteString`] from the given data.
     pub fn new(style: Style, content: Content<'a, S>, oscontrol: Option<OSControl<'a, S>>) -> Self {
         Self {
             style,
@@ -160,10 +167,13 @@ where
         &mut self.style
     }
 
+    /// Get the (text) content in this generic string.
     pub fn content(&self) -> &Content<'a, S> {
         &self.content
     }
 
+    /// Get the [`OSControl`] settings associated with this generic string, if
+    /// any exist.
     pub fn oscontrol(&self) -> &Option<OSControl<'a, S>> {
         &self.oscontrol
     }
@@ -246,7 +256,8 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S>
 where
     S: fmt::Debug,
 {
-    pub fn empty(capacity: usize) -> Self {
+    /// Create empty sequence with the given capacity.
+    pub fn with_capacity(capacity: usize) -> Self {
         Self {
             contents: Vec::with_capacity(capacity),
             style_updates: Vec::with_capacity(capacity),
@@ -254,7 +265,7 @@ where
         }
     }
 
-    pub fn push(&mut self, s: AnsiGenericString<'a, S>) {
+    fn push(&mut self, s: AnsiGenericString<'a, S>) {
         let len = self.push_content(s.content().clone());
         self.push_style(*s.style(), len - 1);
         self.push_oscontrol(s.oscontrol().clone());
@@ -266,11 +277,14 @@ where
             .last()
             .copied()
             .unwrap_or_default()
-            .command
+            .style_delta
             .delta_next(next);
         dbg!(begins_at, command);
 
-        self.style_updates.push(StyleUpdate { begins_at, command })
+        self.style_updates.push(StyleUpdate {
+            begins_at,
+            style_delta: command,
+        })
     }
 
     #[inline]
@@ -303,6 +317,7 @@ where
     }
 }
 
+/// Iterator over the minimal styles (see [`StyleDelta`]) of an [`AnsiGenericStrings`] sequence.
 pub struct StyleIter<'a> {
     cursor: usize,
     instructions: &'a Vec<StyleUpdate>,
@@ -310,9 +325,11 @@ pub struct StyleIter<'a> {
     current: Option<StyleUpdate>,
 }
 
+/// The [`StyleDelta`] to be applied before the contents of the string at
+/// position `begin_at`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct StyleUpdate {
-    command: StyleDelta,
+    style_delta: StyleDelta,
     begins_at: usize,
 }
 
@@ -344,10 +361,11 @@ impl<'b> Iterator for StyleIter<'b> {
             }
             (Some(current), None) => current.into(),
         }
-        .map(|u| u.command)
+        .map(|u| u.style_delta)
     }
 }
 
+/// An iterator over the contents in an [`AnsiGenericStrings`] sequence.
 pub struct ContentIter<'b, 'a: 'b, S: 'a + ToOwned + ?Sized>
 where
     S: fmt::Debug,
@@ -378,6 +396,8 @@ where
     }
 }
 
+/// An iterator over the data required to write out an [`AnsiGenericStrings`]
+/// sequence to an [`AnyWrite`] implementor.
 pub struct WriteIter<'b, 'a, S: 'a + ToOwned + ?Sized>
 where
     S: fmt::Debug,
@@ -410,7 +430,7 @@ where
         let iter = iter.into_iter();
         let (lower, upper) = iter.size_hint();
         let count = upper.unwrap_or(lower);
-        let mut ansi_strings = AnsiGenericStrings::empty(count);
+        let mut ansi_strings = AnsiGenericStrings::with_capacity(count);
         for s in iter {
             ansi_strings.push(s.clone());
         }
@@ -491,7 +511,7 @@ impl Color {
 
 impl<'a> fmt::Display for AnsiString<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.write_to_any(coerce_fmt_write!(f))
+        self.write_to_any(fmt_write!(f))
     }
 }
 
@@ -569,7 +589,8 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S>
 where
     S: fmt::Debug,
 {
-    fn write_to_any<W: AnyWrite + ?Sized>(&'a self, w: &mut W) -> WriteResult<W::Error>
+    /// Write this sequence to the given [`AnyWrite`] implementor.
+    pub fn write_to_any<W: AnyWrite + ?Sized>(&'a self, w: &mut W) -> WriteResult<W::Error>
     where
         S: StrLike<'a, W>,
         str: StrLike<'a, W>,
@@ -618,8 +639,8 @@ mod tests {
         let unstyled = AnsiGenericString::title("hello");
 
         let joined = AnsiStrings(&[unstyled.clone()]).to_string();
-        let required = "\x1B]2;hello\x1B\\";
-        assert_required(joined, required, None);
+        let expected = "\x1B]2;hello\x1B\\";
+        assert_required(joined, expected, None);
     }
 
     #[test]
@@ -630,8 +651,8 @@ mod tests {
         // does not introduce spurious SGR codes (reset or otherwise) adjacent
         // to plain strings
         let joined = AnsiStrings(&[unstyled.clone(), after.clone()]).to_string();
-        let required = format!("{}{}", unstyled, after);
-        assert_required(joined, required, None);
+        let expected = format!("{}{}", unstyled, after);
+        assert_required(joined, expected, None);
     }
 
     #[test]
@@ -642,8 +663,8 @@ mod tests {
         // does not introduce spurious SGR codes (reset or otherwise) adjacent
         // to plain strings
         let joined = AnsiStrings(&[before.clone(), unstyled.clone()]).to_string();
-        let required = format!("{}{}", before.clone(), unstyled);
-        assert_required(joined, required, None);
+        let expected = format!("{}{}", before.clone(), unstyled);
+        assert_required(joined, expected, None);
     }
 
     #[test]
@@ -655,8 +676,8 @@ mod tests {
         // does not introduce spurious SGR codes (reset or otherwise) adjacent
         // to plain strings
         let joined = AnsiStrings(&[before.clone(), unstyled.clone(), after.clone()]).to_string();
-        let required = format!("{}{}{}", before, unstyled, after);
-        assert_required(joined, required, None);
+        let expected = format!("{}{}{}", before, unstyled, after);
+        assert_required(joined, expected, None);
     }
 
     #[test]
@@ -666,7 +687,7 @@ mod tests {
 
         // Check that RESET does not follow unstyled
         let joined = AnsiStrings(&[unstyled.clone(), after_g.clone()]).to_string();
-        let required = format!("{}{}", unstyled, {
+        let expected = format!("{}{}", unstyled, {
             format_args!(
                 "{}{}{}",
                 after_g.style.prefix(),
@@ -674,7 +695,7 @@ mod tests {
                 after_g.style.suffix()
             )
         });
-        assert_required(joined, required, None);
+        assert_required(joined, expected, None);
     }
 
     #[test]
@@ -684,7 +705,7 @@ mod tests {
 
         // Check that reset precedes unstyled, but does not follow it
         let joined = AnsiStrings(&[before_g.clone(), unstyled.clone()]).to_string();
-        let required = format!(
+        let expected = format!(
             "{}{}",
             format_args!(
                 "{}{}{}",
@@ -694,7 +715,7 @@ mod tests {
             ),
             unstyled
         );
-        assert_required(joined, required, None);
+        assert_required(joined, expected, None);
     }
 
     #[test]
@@ -705,7 +726,7 @@ mod tests {
 
         let joined =
             AnsiStrings(&[before_g.clone(), unstyled.clone(), after_g.clone()]).to_string();
-        let required = format!(
+        let expected = format!(
             "{}{}{}",
             format_args!(
                 "{}{}{}",
@@ -721,7 +742,7 @@ mod tests {
                 after_g.style.suffix()
             )
         );
-        assert_required(joined, required, None);
+        assert_required(joined, expected, None);
     }
 
     #[test]

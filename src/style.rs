@@ -110,7 +110,9 @@ pub struct Coloring {
     derive(serde::Deserialize, serde::Serialize)
 )]
 pub struct Style {
+    /// Flags representing whether particular style properties are set or not.
     pub flags: StyleFlags,
+    /// Data regarding the foreground/background color applied by this style.
     pub coloring: Coloring,
 }
 
@@ -165,13 +167,14 @@ macro_rules! style_methods_for_flag {
                     if color.is_some() {
                         self.flags.insert(relevant_flag)
                     } else {
-                        self.unset_flags(relevant_flag);
+                        self.remove_flags(relevant_flag);
                     }
                     self.coloring.[< $flag:lower >] = color;
                 }
                 self
             }
 
+            #[doc = r"Set the " $flag:lower " color of the style."]
             #[inline]
             pub fn [< $flag:lower >](&self, color: Color) -> Self {
                 self.[< set_ $flag:lower >](color.into())
@@ -207,7 +210,7 @@ macro_rules! style_methods_for_flag {
             #[doc = r#"println!("{}", style.paint("hey"));"# ]
             #[doc = r"```"]
             pub fn [< $flag:lower >](&self) -> Style {
-                (*self).set_flags(StyleFlags::$flag)
+                (*self).insert_flags(StyleFlags::$flag)
             }
 
             #[doc = r"Checks if the [`StyleFlags::`" $flag r"`] property is set."]
@@ -217,7 +220,7 @@ macro_rules! style_methods_for_flag {
 
             #[doc = r"Returns a copy of this style with the [`StyleFlags::`" $flag r"`] property unset."]
             pub fn [< without_ $flag:lower >](&self) -> Style {
-                (*self).unset_flags(StyleFlags::$flag)
+                (*self).remove_flags(StyleFlags::$flag)
             }
         }
     }
@@ -244,24 +247,32 @@ impl Style {
         Style::default()
     }
 
-    pub fn set_flags(mut self, flags: StyleFlags) -> Self {
+    /// Insert (turn on) style properties in this style that are true in given `flags`.
+    pub fn insert_flags(mut self, flags: StyleFlags) -> Self {
         self.flags.insert(flags);
         self
     }
 
-    pub fn unset_flags(mut self, flags: StyleFlags) -> Self {
+    /// Remove (turn off) style properties in this style that are true in given `flags`.
+    pub fn remove_flags(mut self, flags: StyleFlags) -> Self {
+        // We use &! instead of the `remove` operator on `flags`, because !
+        // truncates any unknown bits.
         self.flags &= !flags;
         self
     }
 
+    /// Create a copy of this style, and insert into it any formats
+    /// that are true in `flags`.
     #[inline]
     pub fn with_flags(&self, flags: StyleFlags) -> Style {
-        (*self).set_flags(flags)
+        (*self).insert_flags(flags)
     }
 
+    /// Create a copy of this style, and remove from it any formats that are
+    /// true in `flags`.
     #[inline]
     pub fn without_flags(&self, flags: StyleFlags) -> Style {
-        (*self).unset_flags(flags)
+        (*self).remove_flags(flags)
     }
 
     style_methods!(
@@ -293,11 +304,13 @@ impl Style {
         self.flags.is_empty()
     }
 
+    /// Check if style has no formatting or coloring.
     #[inline]
     pub fn has_no_styling(&self) -> bool {
         self.without_prefix_with_reset().is_empty()
     }
 
+    /// Check if style has any coloring.
     #[inline]
     pub fn has_color(&self) -> bool {
         self.flags.has_color()
@@ -329,15 +342,13 @@ impl Style {
         StyleFlags::turned_on(before.flags, after.flags)
     }
 
-    pub fn set_coloring(self, coloring: Coloring) -> Self {
+    /// Create a copy of this style with the specified `coloring`.
+    pub fn coloring(self, coloring: Coloring) -> Self {
         self.set_foreground(coloring.foreground)
             .set_background(coloring.background)
     }
 
-    pub fn coloring(&self, coloring: Coloring) -> Self {
-        (*self).set_coloring(coloring)
-    }
-
+    /// Iterate over the formats in this style that are turned on.
     pub fn iter_formats(&self) -> impl Iterator<Item = (&'_ str, StyleFlags)> {
         self.flags
             .iter_names()

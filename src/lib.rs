@@ -239,6 +239,9 @@
 #[cfg(test)]
 doc_comment::doctest!("../README.md");
 
+/// Functionality to map an
+/// [`AnsiGenericString`](crate::display::AnsiGenericString) into a sequence of
+/// relevant ANSI escape codes.
 pub mod ansi;
 pub use ansi::{Infix, Prefix, Suffix};
 
@@ -246,18 +249,26 @@ mod style;
 pub use style::{Color, Style};
 
 mod difference;
+/// Functionality to write an ANSI string to [`AnyWrite`] implementors.
 mod display;
 pub use display::*;
 
-mod write;
+/// Traits and objects which allow writing "generically" to either
+/// [`fmt::Write`] or [`io::Write`] implementors.
+pub mod write;
+pub use write::*;
 
+/// Helpers for managing MS Windows related details.
 mod windows;
 pub use crate::windows::*;
 
+/// Helpers for debugging ANSI strings.
 mod debug;
 
+/// Helpers for creating color gradients.
 pub mod gradient;
 pub use gradient::*;
 
+/// Helpers for specifying RGB colors.
 mod rgb;
 pub use rgb::*;

@@ -2,7 +2,7 @@
 use crate::difference::StyleDelta;
 use crate::style::{Color, Style, StyleFlags};
 use crate::write::{AnyWrite, StrLike, WriteResult};
-use crate::{coerce_fmt_write, write_any_fmt, write_any_str};
+use crate::{fmt_write, write_any_fmt, write_any_str};
 use std::fmt;
 
 impl StyleFlags {
@@ -397,14 +397,14 @@ impl Color {
 
 impl fmt::Display for Prefix {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.0.write_prefix(coerce_fmt_write!(f))
+        self.0.write_prefix(fmt_write!(f))
     }
 }
 
 impl fmt::Display for Infix {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.0.compute_delta(self.1) {
-            StyleDelta::PrefixUsing(style) => style.write_prefix(coerce_fmt_write!(f)),
+            StyleDelta::PrefixUsing(style) => style.write_prefix(fmt_write!(f)),
             StyleDelta::Empty => Ok(()),
         }
     }
@@ -412,7 +412,7 @@ impl fmt::Display for Infix {
 
 impl fmt::Display for Suffix {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.0.write_suffix(coerce_fmt_write!(f))
+        self.0.write_suffix(fmt_write!(f))
     }
 }
 

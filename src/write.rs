@@ -3,8 +3,22 @@ use std::fmt;
 use std::fmt::Debug;
 use std::io;
 
+/// Helper to alias  over [`fmt::Result`], or [`io::Result`] depending on the
+/// error type used ([`fmt::Error`] or [`io::Error`]).
 pub type WriteResult<E> = Result<(), E>;
 
+/// Takes an [`AnyWrite`] implementor and arguments necessary to build
+/// [`fmt::Arguments`].
+/// ```
+/// use std::fmt;
+/// use nu_ansi_term::{Color, fmt_write, write_any_fmt, AnyWrite};
+///
+/// let mut s = String::new();
+/// let mut t = String::new();
+/// fmt_write!(&mut s).write_any_fmt(format_args!("{}", Color::Red.paint("hello world!")));
+/// write_any_fmt!(fmt_write!(&mut t), "{}", Color::Red.paint("hello world!"));
+/// assert_eq!(s, t);
+/// ```
 #[macro_export]
 macro_rules! write_any_fmt {
     ($w:expr, $($args:tt)*) => {
@@ -12,6 +26,17 @@ macro_rules! write_any_fmt {
     };
 }
 
+/// Takes an [`AnyWrite`] implementor and writes some [`StrLike`] content to it.
+/// ```
+/// use std::fmt;
+/// use nu_ansi_term::{fmt_write, write_any_str, AnyWrite, StrLike};
+///
+/// let mut s = String::new();
+/// let mut t = String::new();
+/// fmt_write!(&mut s).write_any_str("hello world!");
+/// write_any_str!(fmt_write!(&mut t), "hello world!");
+/// assert_eq!(s, t);
+/// ```
 #[macro_export]
 macro_rules! write_any_str {
     ($w:expr, $($args:tt)*) => {
@@ -19,38 +44,39 @@ macro_rules! write_any_str {
     };
 }
 
+/// Coerce the given writer into `&mut dyn fmt::Write`. It is a compile-time
+/// error if this is not possible.
 #[macro_export]
-macro_rules! write_any {
-    ($w:expr, $($args:tt)*) => {
-        {
-            let c = $crate::write::Content::from($($args)*);
-            c.write_to($w)
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! coerce_fmt_write {
+macro_rules! fmt_write {
     ($w:expr) => {{
         let w: &mut dyn fmt::Write = $w;
         w
     }};
 }
 
+/// Coerce the given writer into `&mut dyn io::Write`. It is a compile-time
+/// error if this is not possible.
 #[macro_export]
-macro_rules! coerce_io_write {
+macro_rules! io_write {
     ($w:expr) => {{
         let w: &mut dyn io::Write = $w;
         w
     }};
 }
 
+/// Allows for generalization over [`fmt::Write`] and [`io::Write`] implementors.
 pub trait AnyWrite {
+    /// Type of string-like data buffers accepted by this writer ([`str`] for
+    /// [`fmt::Write`] and [`[u8]`] [`io::Write`]).
     type Buf: ?Sized + ToOwned;
+    /// Type of error produced by this writer ([`fmt::Error`] for
+    /// [`fmt::Write`] and [`io::Error`] [`io::Write`]).
     type Error;
 
+    /// Write [`fmt::Arguments`] data (created using [`format_args!`] macro) to this writer.
     fn write_any_fmt(&mut self, args: fmt::Arguments) -> WriteResult<Self::Error>;
 
+    /// Write [`AnyWrite::Buf`] type data to this writer.
     fn write_any_str(&mut self, s: &Self::Buf) -> WriteResult<Self::Error>;
 }
 
@@ -80,10 +106,13 @@ impl<'a> AnyWrite for dyn io::Write + 'a {
     }
 }
 
+/// Implementors can be converted into a reference to string-like data buffer
+/// accepted by `W`.
 pub trait StrLike<'a, W: AnyWrite + ?Sized>
 where
     Self: AsRef<W::Buf>,
 {
+    /// Write string-like data to the writer.
     fn write_str_to(&self, w: &mut W) -> WriteResult<W::Error>;
 }
 
@@ -93,8 +122,15 @@ impl<'a, W: AnyWrite + ?Sized, S: ?Sized + ToOwned + AsRef<W::Buf>> StrLike<'a, 
     }
 }
 
+/// Enumerates the two types of content an [`AnyWrite`] implementor can handle:
+/// * [fmt::Arguments]
+/// * anything that implements [`AsRef<AnyWrite::Buf>`] (conveniently
+///   stored in either reference or owned format within a [`Cow`]).
 pub enum Content<'a, S: ?Sized + ToOwned> {
+    /// Content is [`fmt::Arguments`].
     FmtArgs(fmt::Arguments<'a>),
+    /// Content is a reference to something that implements [`ToOwned`], or the
+    /// [`ToOwned::Owned`] variant specified by that implementation.
     StrLike(Cow<'a, S>),
 }
 
@@ -107,8 +143,7 @@ where
             Content::FmtArgs(x) => format!("{}", x),
             Content::StrLike(x) => {
                 let mut s = String::new();
-                <S as StrLike<'a, dyn fmt::Write>>::write_str_to(x, coerce_fmt_write!(&mut s))
-                    .unwrap();
+                <S as StrLike<'a, dyn fmt::Write>>::write_str_to(x, fmt_write!(&mut s)).unwrap();
                 s
             }
         }
@@ -137,6 +172,7 @@ where
 }
 
 impl<'a, S: ?Sized + ToOwned> Content<'a, S> {
+    /// Write content to the given writer.
     pub fn write_to<T: ?Sized + ToOwned, W: AnyWrite<Buf = T> + ?Sized>(
         &self,
         w: &mut W,
@@ -151,12 +187,20 @@ impl<'a, S: ?Sized + ToOwned> Content<'a, S> {
     }
 }
 
+/// Create  `From<T> for Content` impl for a type `T`.
+/// ```
+/// use nu_ansi_term::Content;
+///
+/// struct Buffalo(usize);
+/// let content = content_from!(|x: Buffalo| -> Content<'a, S> | Content::from(format_args!("{}", x.0))|);
+/// println!("{}", content);
+/// ```
 #[macro_export]
 macro_rules! content_from {
-    (|$inp:ident : $inp_ty:ty | -> Content<'a, S> { $conversion:expr } ) => {
+    (|$inp:ident : $inp_ty:ty | { $conversion:expr } ) => {
         impl<'a, S: ?Sized + ToOwned> From<&'a S> for Content<'a, S> {
             fn from(inp: &'a S) -> Self {
-                $conversion(inp)
+                (|$inp: $inp_ty| -> Content<'a, S> { $conversion })(inp)
             }
         }
     };

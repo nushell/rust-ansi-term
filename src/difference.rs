@@ -8,6 +8,9 @@ pub enum StyleDelta {
 }
 
 impl Style {
+    /// Computes the differences between two consecutive styles, returning a
+    /// result specifying the minimum `Style` required to change from the first
+    /// (`self`) style to the `next` style.
     pub fn compute_delta(self, next: Style) -> StyleDelta {
         println!("computing delta");
         dbg!(self, next);
@@ -30,7 +33,7 @@ impl Style {
             } else {
                 let turned_on_from_self = Self::turned_on(self, next);
                 dbg!(turned_on_from_self);
-                let mut r = Style::default().set_flags(turned_on_from_self);
+                let mut r = Style::default().insert_flags(turned_on_from_self);
                 if self.is_foreground() != next.is_foreground() {
                     r = r.set_foreground(next.coloring.foreground);
                 }

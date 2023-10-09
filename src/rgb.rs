@@ -1,6 +1,8 @@
 // Code liberally borrowed from here
 // https://github.com/navierr/coloriz
 use std::u32;
+
+/// Represents RGB color with 8-bit channels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Rgb {
     /// Red
@@ -12,18 +14,19 @@ pub struct Rgb {
 }
 
 impl Rgb {
-    /// Creates a new [Rgb] color
+    /// Creates a new [Rgb] from three [u8] values.
     #[inline]
     pub const fn new(r: u8, g: u8, b: u8) -> Self {
         Self { r, g, b }
     }
 
-    /// Creates a new [Rgb] color with a hex code
+    /// Creates a new [Rgb] color from a hex code.
     #[inline]
     pub const fn from_hex(hex: u32) -> Self {
         Self::new((hex >> 16) as u8, (hex >> 8) as u8, hex as u8)
     }
 
+    /// Creates a new [Rgb] color from a hex string.
     pub fn from_hex_string(hex: String) -> Self {
         if hex.chars().count() == 8 && hex.starts_with("0x") {
             // eprintln!("hex:{:?}", hex);
@@ -47,7 +50,7 @@ impl Rgb {
         }
     }
 
-    /// Creates a new [Rgb] color with three [f32] values
+    /// Creates a new [Rgb] color with three [f32] values.
     pub fn from_f32(r: f32, g: f32, b: f32) -> Self {
         Self::new(
             (r.clamp(0.0, 1.0) * 255.0) as u8,
@@ -56,46 +59,19 @@ impl Rgb {
         )
     }
 
-    /// Creates a grayscale [Rgb] color
+    /// Creates a grayscale [Rgb] color from a [u8].
     #[inline]
     pub const fn gray(x: u8) -> Self {
         Self::new(x, x, x)
     }
 
-    /// Creates a grayscale [Rgb] color with a [f32] value
+    /// Creates a grayscale [Rgb] color from a [f32] value.
     pub fn gray_f32(x: f32) -> Self {
         Self::from_f32(x, x, x)
     }
 
-    /// Creates a new [Rgb] color from a [HSL] color
-    // pub fn from_hsl(hsl: HSL) -> Self {
-    //     if hsl.s == 0.0 {
-    //         return Self::gray_f32(hsl.l);
-    //     }
-
-    //     let q = if hsl.l < 0.5 {
-    //         hsl.l * (1.0 + hsl.s)
-    //     } else {
-    //         hsl.l + hsl.s - hsl.l * hsl.s
-    //     };
-    //     let p = 2.0 * hsl.l - q;
-    //     let h2c = |t: f32| {
-    //         let t = t.clamp(0.0, 1.0);
-    //         if 6.0 * t < 1.0 {
-    //             p + 6.0 * (q - p) * t
-    //         } else if t < 0.5 {
-    //             q
-    //         } else if 1.0 < 1.5 * t {
-    //             p + 6.0 * (q - p) * (1.0 / 1.5 - t)
-    //         } else {
-    //             p
-    //         }
-    //     };
-
-    //     Self::from_f32(h2c(hsl.h + 1.0 / 3.0), h2c(hsl.h), h2c(hsl.h - 1.0 / 3.0))
-    // }
-
-    /// Computes the linear interpolation between `self` and `other` for `t`
+    /// Computes the linear interpolation between `self` and `other` at `t`. `t`
+    /// is clamped between `[0.0, 1.0]`.
     pub fn lerp(&self, other: Self, t: f32) -> Self {
         let t = t.clamp(0.0, 1.0);
         self * (1.0 - t) + other * t

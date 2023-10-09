@@ -1,8 +1,8 @@
 use itertools::Itertools;
 
 use crate::{
-    coerce_fmt_write,
     difference::StyleDelta,
+    fmt_write,
     style::{Coloring, Style, StyleFlags},
     write::Content,
     AnsiGenericString, Color, Infix,
@@ -70,7 +70,7 @@ fn debug_style_to_string(
     bg: Option<Color>,
 ) -> Result<String, fmt::Error> {
     let mut dbg_s = String::new();
-    let f = coerce_fmt_write!(&mut dbg_s);
+    let f = fmt_write!(&mut dbg_s);
     debug_write_style_to(f, flags, fg, bg)?;
     Ok(dbg_s)
 }
@@ -135,38 +135,40 @@ impl Debug for StyleFlags {
 
 pub fn assert_required<T: PartialEq<U> + Eq + Debug, U: PartialEq<T> + Eq + Debug>(
     outcome: U,
-    required: T,
+    expected: T,
     optional: Option<fmt::Arguments<'_>>,
 ) {
     assert!(
-        outcome == required,
-        "Disagreement:\n(test) {outcome:?} != {required:?} (required)",
+        outcome == expected,
+        "Disagreement:\n(test) {outcome:?} != {expected:?} (expected)",
     );
     if let Some(arg) = optional {
         println!("{}", arg);
     }
 }
 
+/// Compares the debug string form of `tests_style` with `expected`.
 #[allow(unused)]
 #[inline]
-pub fn test_style_eq(test_style: Style, required: &str) {
+pub fn test_style_eq(test_style: Style, expected: &str) {
     let test = format!("{:#?}", test_style);
-    assert_required(test, required, None);
+    assert_required(test, expected, None);
 }
 
+/// Applies `test_style` to the supplied `content`, and compares with `expected`.
 #[allow(unused)]
 #[inline]
-pub fn test_styled_content_eq<P: DebugStylePaint>(test_style: P, content: &str, required: &str)
+pub fn test_styled_content_eq<P: DebugStylePaint>(test_style: P, content: &str, expected: &str)
 where
     P: Debug,
 {
     let test_result = test_style.style_input(content).to_string();
-    let required = required.to_string();
-    let required_bytes = required.as_bytes().to_owned();
+    let expected = expected.to_string();
+    let required_bytes = expected.as_bytes().to_owned();
 
     assert_required(
         test_result,
-        required,
+        expected,
         format_args!("(test_style) {test_style:#?}").into(),
     );
 
@@ -176,21 +178,26 @@ where
         .write_to(&mut v)
         .unwrap();
     let slice_v = v.as_slice();
-    let required = required_bytes;
+    let expected = required_bytes;
 
     assert_required(
         slice_v,
-        required,
+        expected,
         format_args!("(test_style) {test_style:#?}").into(),
     );
 }
 
+/// Compares two [`String`]s: `outcome` is generated from
+/// [`AnsiGenericString`]'s auto-implementation of [`ToString`], while
+/// `expected` is a user supplied string that specifies what the expected
+/// outcome is.
 #[allow(unused)]
 #[inline]
-pub fn test_styled_string_eq(outcome: String, required: &str) {
-    assert_required(outcome, required, None);
+pub fn test_styled_string_eq(outcome: String, expected: &str) {
+    assert_required(outcome, expected, None);
 }
 
+/// Automatically creates various kinds of useful tests for this crate.
 #[macro_export]
 macro_rules! style_test {
     (@str_cmp $name: ident: try:$test:expr; req:$req:literal) => {

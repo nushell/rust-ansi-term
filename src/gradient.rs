@@ -13,11 +13,12 @@ pub struct Gradient {
 impl Gradient {
     /// Creates a new [Gradient] with two [Rgb] colors, `start` and `end`
     #[inline]
-    pub const fn new(start: Rgb, end: Rgb) -> Self {
+    pub const fn from_rgb(start: Rgb, end: Rgb) -> Self {
         Self { start, end }
     }
 
-    pub const fn from_color_rgb(start: Color, end: Color) -> Self {
+    /// Creates a [Gradient] with two [`Color`] colors, `start` and `end`.
+    pub const fn from_colors(start: Color, end: Color) -> Self {
         let start_grad = match start {
             Color::Rgb(r, g, b) => Rgb { r, g, b },
             _ => Rgb { r: 0, g: 0, b: 0 },
@@ -41,9 +42,11 @@ impl Gradient {
     /// Returns the reverse of `self`
     #[inline]
     pub const fn reverse(&self) -> Self {
-        Self::new(self.end, self.start)
+        Self::from_rgb(self.end, self.start)
     }
 
+    /// Creates a string with the given `text` wrapped in ANSI escape codes that
+    /// represent a color gradient.
     pub fn build(&self, text: &str, target: TargetGround) -> String {
         let delta = 1.0 / text.len() as f32;
         let mut result = text.char_indices().fold(String::new(), |mut acc, (i, c)| {
@@ -61,6 +64,7 @@ impl Gradient {
     }
 }
 
+///
 pub fn build_all_gradient_text(text: &str, foreground: Gradient, background: Gradient) -> String {
     let delta = 1.0 / text.len() as f32;
     let mut result = text.char_indices().fold(String::new(), |mut acc, (i, c)| {
@@ -83,13 +87,17 @@ pub fn build_all_gradient_text(text: &str, foreground: Gradient, background: Gra
     result
 }
 
+/// Specifies foreground vs. background.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TargetGround {
+    /// Foreground is the color of the content itself.
     Foreground,
+    /// Background is the color of the background the content sits on.
     Background,
 }
 
 impl TargetGround {
+    /// ANSI code specifying the target "ground" a color is for.
     #[inline]
     pub const fn code(&self) -> u8 {
         match self {
@@ -99,6 +107,8 @@ impl TargetGround {
     }
 }
 
+/// Implementor can be mapped to an ANSI color code.
 pub trait ANSIColorCode {
+    /// Get the ANSI color code associated with this item.
     fn ansi_color_code(&self, target: TargetGround) -> String;
 }
