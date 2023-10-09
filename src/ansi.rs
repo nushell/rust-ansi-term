@@ -22,7 +22,7 @@ impl StyleFlags {
     }
 
     #[cfg(feature = "gnu_legacy")]
-    fn as_format_char(self) -> &'static str {
+    fn as_format_char(self) -> Option<&'static str> {
         match self {
             StyleFlags::BOLD => "01".into(),
             StyleFlags::DIMMED => "02".into(),
@@ -546,8 +546,8 @@ mod gnu_legacy_test {
         [purple_on_white: Purple.on_background(White), "hi", "\x1B[47;35mhi\x1B[0m"]
         [purple_on_white_2: Purple.foreground().background(White), "hi", "\x1B[47;35mhi\x1B[0m"]
         [yellow_on_blue: Style::new().background(Blue).foreground(Yellow), "hi", "\x1B[44;33mhi\x1B[0m"]
-        [yellow_on_blue_reset: Cyan.on_background(Blue).reset_before_style().foreground(Yellow), "hi", "\x1B[0m\x1B[44;33mhi\x1B[0m"]
-        [yellow_on_blue_reset_2: Cyan.on_background(Blue).foreground(Yellow).reset_before_style(), "hi", "\x1B[0m\x1B[44;33mhi\x1B[0m"]
+        [yellow_on_blue_reset: Cyan.on_background(Blue).prefix_with_reset().foreground(Yellow), "hi", "\x1B[0m\x1B[44;33mhi\x1B[0m"]
+        [yellow_on_blue_reset_2: Cyan.on_background(Blue).foreground(Yellow).prefix_with_reset(), "hi", "\x1B[0m\x1B[44;33mhi\x1B[0m"]
         [magenta_on_white: Magenta.on_background(White), "hi", "\x1B[47;35mhi\x1B[0m"]
         [magenta_on_white_2: Magenta.foreground().background(White), "hi", "\x1B[47;35mhi\x1B[0m"]
         [yellow_on_blue_2: Cyan.on_background(Blue).foreground(Yellow), "hi", "\x1B[44;33mhi\x1B[0m"]
@@ -563,8 +563,8 @@ mod gnu_legacy_test {
         [blue_on_rgb: Blue.on_background(Rgb(70,130,180)), "hi", "\x1B[48;2;70;130;180;34mhi\x1B[0m"]
         [rgb_on_rgb: Rgb(70,130,180).on_background(Rgb(5,10,15)), "hi", "\x1B[48;2;5;10;15;38;2;70;130;180mhi\x1B[0m"]
         [bold: Style::new().bold(), "hi", "\x1B[01mhi\x1B[0m"]
-        [bold_with_reset: Style::new().reset_before_style().bold(), "hi", "\x1B[0m\x1B[01mhi\x1B[0m"]
-        [bold_with_reset_2: Style::new().bold().reset_before_style(), "hi", "\x1B[0m\x1B[01mhi\x1B[0m"]
+        [bold_with_reset: Style::new().prefix_with_reset().bold(), "hi", "\x1B[0m\x1B[01mhi\x1B[0m"]
+        [bold_with_reset_2: Style::new().bold().prefix_with_reset(), "hi", "\x1B[0m\x1B[01mhi\x1B[0m"]
         [underline: Style::new().underline(), "hi", "\x1B[04mhi\x1B[0m"]
         [bunderline: Style::new().bold().underline(), "hi", "\x1B[01;04mhi\x1B[0m"]
         [dimmed: Style::new().dimmed(), "hi", "\x1B[02mhi\x1B[0m"]
