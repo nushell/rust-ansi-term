@@ -187,25 +187,6 @@ impl<'a, S: ?Sized + ToOwned> Content<'a, S> {
     }
 }
 
-/// Create  `From<T> for Content` impl for a type `T`.
-/// ```
-/// use nu_ansi_term::Content;
-///
-/// struct Buffalo(usize);
-/// let content = content_from!(|x: Buffalo| -> Content<'a, S> | Content::from(format_args!("{}", x.0))|);
-/// println!("{}", content);
-/// ```
-#[macro_export]
-macro_rules! content_from {
-    (|$inp:ident : $inp_ty:ty | { $conversion:expr } ) => {
-        impl<'a, S: ?Sized + ToOwned> From<&'a S> for Content<'a, S> {
-            fn from(inp: &'a S) -> Self {
-                (|$inp: $inp_ty| -> Content<'a, S> { $conversion })(inp)
-            }
-        }
-    };
-}
-
 impl<'a, S: ?Sized + ToOwned, T: ?Sized + ToOwned> From<&'a T> for Content<'a, S>
 where
     S: Debug,
