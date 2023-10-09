@@ -1,22 +1,22 @@
 #![allow(missing_docs)]
 use crate::difference::StyleDelta;
-use crate::style::{Color, Style, StyleFlags};
+use crate::style::{Color, FormatFlags, Style};
 use crate::write::{AnyWrite, StrLike, WriteResult};
 use crate::{fmt_write, write_any_fmt, write_any_str};
 use std::fmt;
 
-impl StyleFlags {
+impl FormatFlags {
     #[cfg(not(feature = "gnu_legacy"))]
     fn as_format_char(self) -> Option<char> {
         match self {
-            StyleFlags::BOLD => '1'.into(),
-            StyleFlags::DIMMED => '2'.into(),
-            StyleFlags::ITALIC => '3'.into(),
-            StyleFlags::UNDERLINE => '4'.into(),
-            StyleFlags::BLINK => '5'.into(),
-            StyleFlags::REVERSE => '7'.into(),
-            StyleFlags::HIDDEN => '8'.into(),
-            StyleFlags::STRIKETHROUGH => '9'.into(),
+            FormatFlags::BOLD => '1'.into(),
+            FormatFlags::DIMMED => '2'.into(),
+            FormatFlags::ITALIC => '3'.into(),
+            FormatFlags::UNDERLINE => '4'.into(),
+            FormatFlags::BLINK => '5'.into(),
+            FormatFlags::REVERSE => '7'.into(),
+            FormatFlags::HIDDEN => '8'.into(),
+            FormatFlags::STRIKETHROUGH => '9'.into(),
             _ => None,
         }
     }
@@ -24,21 +24,21 @@ impl StyleFlags {
     #[cfg(feature = "gnu_legacy")]
     fn as_format_char(self) -> Option<&'static str> {
         match self {
-            StyleFlags::BOLD => "01".into(),
-            StyleFlags::DIMMED => "02".into(),
-            StyleFlags::ITALIC => "03".into(),
-            StyleFlags::UNDERLINE => "04".into(),
-            StyleFlags::BLINK => "05".into(),
-            StyleFlags::REVERSE => "07".into(),
-            StyleFlags::HIDDEN => "08".into(),
-            StyleFlags::STRIKETHROUGH => "09".into(),
+            FormatFlags::BOLD => "01".into(),
+            FormatFlags::DIMMED => "02".into(),
+            FormatFlags::ITALIC => "03".into(),
+            FormatFlags::UNDERLINE => "04".into(),
+            FormatFlags::BLINK => "05".into(),
+            FormatFlags::REVERSE => "07".into(),
+            FormatFlags::HIDDEN => "08".into(),
+            FormatFlags::STRIKETHROUGH => "09".into(),
             _ => None,
         }
     }
 }
 
 impl Style {
-    /// Write any bytes that go *before* a piece of text to the given writer.
+    /// Write any codes that go *before* a piece of text to the given writer.
     pub fn write_prefix<W: AnyWrite + ?Sized>(&self, f: &mut W) -> WriteResult<W::Error>
     where
         str: AsRef<W::Buf>,
@@ -96,7 +96,7 @@ impl Style {
         }
 
         let mut write_occurred = false;
-        for (_, flag) in self.iter_formats() {
+        for (_, flag) in self.formats.iter_names() {
             write_occurred = write_code(
                 f,
                 flag.as_format_char(),
@@ -291,7 +291,7 @@ impl Style {
     /// assert_eq!("\x1b[32m",
     ///            style.infix(Green.bold()).to_string());
     ///
-    /// let style = Green.foreground();
+    /// let style = Green.as_foreground();
     /// assert_eq!("\x1b[1m",
     ///            style.infix(Green.bold()).to_string());
     ///
@@ -307,7 +307,7 @@ impl Style {
     /// # {
     /// use nu_ansi_term::Color::Green;
     ///
-    /// let style = Green.foreground();
+    /// let style = Green.as_foreground();
     /// assert_eq!("\x1b[01m",
     ///            style.infix(Green.bold()).to_string());
     /// # }
@@ -328,7 +328,7 @@ impl Style {
     /// assert_eq!("\x1b[0m",
     ///            style.suffix().to_string());
     ///
-    /// let style = Green.foreground().bold();
+    /// let style = Green.as_foreground().bold();
     /// assert_eq!("\x1b[0m",
     ///            style.suffix().to_string());
     ///
@@ -356,7 +356,7 @@ impl Color {
     ///            Green.prefix().to_string());
     /// ```
     pub fn prefix(self) -> Prefix {
-        Prefix(self.foreground())
+        Prefix(self.as_foreground())
     }
 
     /// The infix bytes between this color and `next` color. These are the bytes
@@ -374,7 +374,7 @@ impl Color {
     ///            Red.infix(Yellow).to_string());
     /// ```
     pub fn infix(self, next: Color) -> Infix {
-        Infix(self.foreground(), next.foreground())
+        Infix(self.as_foreground(), next.as_foreground())
     }
 
     /// The suffix for this color as a `Style`. These are the bytes that
@@ -391,7 +391,7 @@ impl Color {
     ///            Purple.suffix().to_string());
     /// ```
     pub fn suffix(self) -> Suffix {
-        Suffix(self.foreground())
+        Suffix(self.as_foreground())
     }
 }
 
@@ -465,17 +465,17 @@ mod test {
     create_content_eq_tests!(
         [plain: Style::default(), "text/plain", "text/plain"]
         [red: Red, "hi", "\x1B[31mhi\x1B[0m"]
-        [black: Black.foreground(), "hi", "\x1B[30mhi\x1B[0m"]
+        [black: Black.as_foreground(), "hi", "\x1B[30mhi\x1B[0m"]
         [yellow: Yellow.bold(), "hi", "\x1B[1;33mhi\x1B[0m"]
-        [yellow_bold_2: Yellow.foreground().bold(), "hi", "\x1B[1;33mhi\x1B[0m"]
+        [yellow_bold_2: Yellow.as_foreground().bold(), "hi", "\x1B[1;33mhi\x1B[0m"]
         [blue_underline: Blue.underline(), "hi", "\x1B[4;34mhi\x1B[0m"]
         [green_bold_ul: Green.bold().underline(), "hi", "\x1B[1;4;32mhi\x1B[0m"]
         [green_bold_ul_2: Green.underline().bold(), "hi", "\x1B[1;4;32mhi\x1B[0m"]
         [purple_on_white: Purple.on_background(White), "hi", "\x1B[47;35mhi\x1B[0m"]
-        [purple_on_white_2: Purple.foreground().background(White), "hi", "\x1B[47;35mhi\x1B[0m"]
+        [purple_on_white_2: Purple.as_foreground().background(White), "hi", "\x1B[47;35mhi\x1B[0m"]
         [yellow_on_blue: Style::new().background(Blue).foreground(Yellow), "hi", "\x1B[44;33mhi\x1B[0m"]
         [magenta_on_white: Magenta.on_background(White), "hi", "\x1B[47;35mhi\x1B[0m"]
-        [magenta_on_white_2: Magenta.foreground().background(White), "hi", "\x1B[47;35mhi\x1B[0m"]
+        [magenta_on_white_2: Magenta.as_foreground().background(White), "hi", "\x1B[47;35mhi\x1B[0m"]
         [yellow_on_blue_2: Cyan.on_background(Blue).foreground(Yellow), "hi", "\x1B[44;33mhi\x1B[0m"]
         [yellow_on_blue_reset: Cyan.on_background(Blue).prefix_with_reset().foreground(Yellow), "hi", "\x1B[0m\x1B[44;33mhi\x1B[0m"]
         [yellow_on_blue_reset_2: Cyan.on_background(Blue).foreground(Yellow).prefix_with_reset(), "hi", "\x1B[0m\x1B[44;33mhi\x1B[0m"]
@@ -503,9 +503,9 @@ mod test {
         [stricken: Style::new().strikethrough(), "hi", "\x1B[9mhi\x1B[0m"]
         [lr_on_lr: LightRed.on_background(LightRed), "hi", "\x1B[101;91mhi\x1B[0m"]
         @str_cmp [reset_format: Style::new().dimmed().infix(Style::new()).to_string(), "\x1B[0m"]
-        @str_cmp [reset_then_style: White.dimmed().infix(White.foreground()).to_string(), "\x1B[0m\x1B[37m"]
-        @str_cmp [color_then_format: White.foreground().infix(White.bold()).to_string(), "\x1B[1m"]
-        @str_cmp [color_change: White.foreground().infix(Blue.foreground()).to_string(), "\x1B[34m"]
+        @str_cmp [reset_then_style: White.dimmed().infix(White.as_foreground()).to_string(), "\x1B[0m\x1B[37m"]
+        @str_cmp [color_then_format: White.as_foreground().infix(White.bold()).to_string(), "\x1B[1m"]
+        @str_cmp [color_change: White.as_foreground().infix(Blue.as_foreground()).to_string(), "\x1B[34m"]
         @str_cmp [no_change: Blue.bold().infix(Blue.bold()).to_string(), ""]
     );
 }

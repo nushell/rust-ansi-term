@@ -126,6 +126,7 @@ impl<'a, W: AnyWrite + ?Sized, S: ?Sized + ToOwned + AsRef<W::Buf>> StrLike<'a, 
 /// * [fmt::Arguments]
 /// * anything that implements [`AsRef<AnyWrite::Buf>`] (conveniently
 ///   stored in either reference or owned format within a [`Cow`]).
+/// * an [`AnsiGenericString`]
 pub enum Content<'a, S: ?Sized + ToOwned> {
     /// Content is [`fmt::Arguments`].
     FmtArgs(fmt::Arguments<'a>),
@@ -143,7 +144,7 @@ where
             Content::FmtArgs(x) => format!("{}", x),
             Content::StrLike(x) => {
                 let mut s = String::new();
-                <S as StrLike<'a, dyn fmt::Write>>::write_str_to(x, fmt_write!(&mut s)).unwrap();
+                x.as_ref().write_str_to(fmt_write!(&mut s)).unwrap();
                 s
             }
         }
@@ -179,6 +180,7 @@ impl<'a, S: ?Sized + ToOwned> Content<'a, S> {
     ) -> WriteResult<W::Error>
     where
         S: StrLike<'a, W>,
+        str: AsRef<T>,
     {
         match self {
             Content::FmtArgs(args) => w.write_any_fmt(*args),
@@ -189,7 +191,6 @@ impl<'a, S: ?Sized + ToOwned> Content<'a, S> {
 
 impl<'a, S: ?Sized + ToOwned, T: ?Sized + ToOwned> From<&'a T> for Content<'a, S>
 where
-    S: Debug,
     T: AsRef<S>,
 {
     fn from(s: &'a T) -> Self {
@@ -197,10 +198,7 @@ where
     }
 }
 
-impl<'a, S: ?Sized + ToOwned> From<fmt::Arguments<'a>> for Content<'a, S>
-where
-    S: Debug,
-{
+impl<'a, S: ?Sized + ToOwned> From<fmt::Arguments<'a>> for Content<'a, S> {
     fn from(args: fmt::Arguments<'a>) -> Self {
         Content::FmtArgs(args)
     }

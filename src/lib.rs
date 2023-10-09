@@ -98,7 +98,7 @@
 //! use nu_ansi_term::Style;
 //! use nu_ansi_term::Color::Red;
 //!
-//! println!("{}", Red.foreground().paint("yet another red string"));
+//! println!("{}", Red.as_foreground().paint("yet another red string"));
 //! println!("{}", Style::default().paint("a completely regular string"));
 //! ```
 //!

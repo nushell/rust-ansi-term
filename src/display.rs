@@ -2,15 +2,11 @@ use crate::difference::StyleDelta;
 use crate::style::{Color, Style};
 use crate::write::{AnyWrite, Content, StrLike, WriteResult};
 use crate::{fmt_write, write_any_fmt, write_any_str};
-use std::fmt;
+use std::fmt::{self, Debug};
 use std::io;
 
 /// Represents various features that require "OS Control" ANSI codes.
-#[derive(Debug)]
-pub enum OSControl<'a, S: 'a + ToOwned + ?Sized>
-where
-    S: fmt::Debug,
-{
+pub enum OSControl<'a, S: 'a + ToOwned + ?Sized> {
     /// Set the title of a terminal window.
     Title,
     /// Create a clickable-link.
@@ -20,10 +16,21 @@ where
     },
 }
 
-impl<'a, S: 'a + ToOwned + ?Sized> Clone for OSControl<'a, S>
+/// We manually implement [`Debug`](fmt::Debug) so that it is specifically only
+/// implemented when `S` also implements `Debug`.
+impl<'a, S: 'a + ToOwned + ?Sized> Debug for OSControl<'a, S>
 where
     S: fmt::Debug,
 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Title => write!(f, "Title"),
+            Self::Link { url } => f.debug_struct("Link").field("url", url).finish(),
+        }
+    }
+}
+
+impl<'a, S: 'a + ToOwned + ?Sized> Clone for OSControl<'a, S> {
     fn clone(&self) -> Self {
         match self {
             Self::Link { url: u } => Self::Link { url: u.clone() },
@@ -35,14 +42,25 @@ where
 /// An `AnsiGenericString` includes a generic string type and a `Style` to
 /// display that string.  `AnsiString` and `AnsiByteString` are aliases for
 /// this type on `str` and `\[u8]`, respectively.
-#[derive(Debug)]
-pub struct AnsiGenericString<'a, S: 'a + ToOwned + ?Sized>
-where
-    S: fmt::Debug,
-{
+pub struct AnsiGenericString<'a, S: 'a + ToOwned + ?Sized> {
     pub(crate) style: Style,
     pub(crate) content: Content<'a, S>,
     oscontrol: Option<OSControl<'a, S>>,
+}
+
+/// We manually implement [`Debug`](fmt::Debug) so that it is specifically only
+/// implemented when `S` also implements `Debug`.
+impl<'a, S: 'a + ToOwned + ?Sized> Debug for AnsiGenericString<'a, S>
+where
+    S: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AnsiGenericString")
+            .field("style", &self.style)
+            .field("content", &self.content)
+            .field("oscontrol", &self.oscontrol)
+            .finish()
+    }
 }
 
 /// Cloning an `AnsiGenericString` will clone its underlying string.
@@ -56,10 +74,7 @@ where
 /// let clone_string = plain_string.clone();
 /// assert_eq!(clone_string.to_string(), plain_string.to_string());
 /// ```
-impl<'a, S: 'a + ToOwned + ?Sized> Clone for AnsiGenericString<'a, S>
-where
-    S: fmt::Debug,
-{
+impl<'a, S: 'a + ToOwned + ?Sized> Clone for AnsiGenericString<'a, S> {
     fn clone(&self) -> AnsiGenericString<'a, S> {
         AnsiGenericString {
             style: self.style,
@@ -92,7 +107,6 @@ where
 
 impl<'a, S: 'a + ToOwned + ?Sized> From<&'a S> for AnsiGenericString<'a, S>
 where
-    S: fmt::Debug,
     S: AsRef<S>,
 {
     fn from(s: &'a S) -> Self {
@@ -104,10 +118,7 @@ where
     }
 }
 
-impl<'a, S: 'a + ToOwned + ?Sized> From<fmt::Arguments<'a>> for AnsiGenericString<'a, S>
-where
-    S: fmt::Debug,
-{
+impl<'a, S: 'a + ToOwned + ?Sized> From<fmt::Arguments<'a>> for AnsiGenericString<'a, S> {
     fn from(args: fmt::Arguments<'a>) -> Self {
         AnsiGenericString {
             style: Style::default(),
@@ -144,10 +155,7 @@ pub type AnsiString<'a> = AnsiGenericString<'a, str>;
 /// `AnsiByteString` when styling text with an unknown encoding.
 pub type AnsiByteString<'a> = AnsiGenericString<'a, [u8]>;
 
-impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericString<'a, S>
-where
-    S: fmt::Debug,
-{
+impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericString<'a, S> {
     /// Create an [`AnsiByteString`] from the given data.
     pub fn new(style: Style, content: Content<'a, S>, oscontrol: Option<OSControl<'a, S>>) -> Self {
         Self {
@@ -242,30 +250,40 @@ where
 
 /// A set of `AnsiGenericStrings`s collected together, in order to be
 /// written with a minimum of control characters.
-#[derive(Debug)]
-pub struct AnsiGenericStrings<'a, S: 'a + ToOwned + ?Sized>
-where
-    S: fmt::Debug,
-{
+pub struct AnsiGenericStrings<'a, S: 'a + ToOwned + ?Sized> {
     contents: Vec<Content<'a, S>>,
     style_updates: Vec<StyleUpdate>,
     oscontrols: Vec<Option<OSControl<'a, S>>>,
+    current_style: Style,
 }
 
-impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S>
+/// We manually implement [`Debug`](fmt::Debug) so that it is specifically only
+/// implemented when `S` also implements `Debug`.
+impl<'a, S: 'a + ToOwned + ?Sized> Debug for AnsiGenericStrings<'a, S>
 where
     S: fmt::Debug,
 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AnsiGenericStrings")
+            .field("contents", &self.contents)
+            .field("style_updates", &self.style_updates)
+            .field("oscontrols", &self.oscontrols)
+            .finish()
+    }
+}
+
+impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
     /// Create empty sequence with the given capacity.
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             contents: Vec::with_capacity(capacity),
             style_updates: Vec::with_capacity(capacity),
             oscontrols: Vec::with_capacity(capacity),
+            current_style: Style::default(),
         }
     }
 
-    fn push(&mut self, s: AnsiGenericString<'a, S>) {
+    fn push(&mut self, s: &AnsiGenericString<'a, S>) {
         let len = self.push_content(s.content().clone());
         self.push_style(*s.style(), len - 1);
         self.push_oscontrol(s.oscontrol().clone());
@@ -279,23 +297,21 @@ where
             .unwrap_or_default()
             .style_delta
             .delta_next(next);
-        dbg!(begins_at, command);
 
         self.style_updates.push(StyleUpdate {
             begins_at,
             style_delta: command,
-        })
+        });
+        self.current_style = next;
     }
 
     #[inline]
     fn push_oscontrol(&mut self, oscontrol: Option<OSControl<'a, S>>) {
-        dbg!(oscontrol.as_ref());
         self.oscontrols.push(oscontrol)
     }
 
     #[inline]
     fn push_content(&mut self, content: Content<'a, S>) -> usize {
-        dbg!(&content);
         self.contents.push(content);
         self.contents.len()
     }
@@ -366,19 +382,13 @@ impl<'b> Iterator for StyleIter<'b> {
 }
 
 /// An iterator over the contents in an [`AnsiGenericStrings`] sequence.
-pub struct ContentIter<'b, 'a: 'b, S: 'a + ToOwned + ?Sized>
-where
-    S: fmt::Debug,
-{
+pub struct ContentIter<'b, 'a: 'b, S: 'a + ToOwned + ?Sized> {
     cursor: usize,
     contents: &'b Vec<Content<'a, S>>,
     oscontrols: &'b Vec<Option<OSControl<'a, S>>>,
 }
 
-impl<'b, 'a: 'b, S: 'a + ToOwned + ?Sized> Iterator for ContentIter<'b, 'a, S>
-where
-    S: fmt::Debug,
-{
+impl<'b, 'a: 'b, S: 'a + ToOwned + ?Sized> Iterator for ContentIter<'b, 'a, S> {
     type Item = (Content<'a, S>, Option<OSControl<'a, S>>);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -398,18 +408,12 @@ where
 
 /// An iterator over the data required to write out an [`AnsiGenericStrings`]
 /// sequence to an [`AnyWrite`] implementor.
-pub struct WriteIter<'b, 'a, S: 'a + ToOwned + ?Sized>
-where
-    S: fmt::Debug,
-{
+pub struct WriteIter<'b, 'a, S: 'a + ToOwned + ?Sized> {
     style_iter: StyleIter<'a>,
     content_iter: ContentIter<'b, 'a, S>,
 }
 
-impl<'b, 'a, S: 'a + ToOwned + ?Sized> Iterator for WriteIter<'b, 'a, S>
-where
-    S: fmt::Debug,
-{
+impl<'b, 'a, S: 'a + ToOwned + ?Sized> Iterator for WriteIter<'b, 'a, S> {
     type Item = (StyleDelta, Content<'a, S>, Option<OSControl<'a, S>>);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -421,8 +425,6 @@ where
 
 impl<'a, S: 'a + ToOwned + ?Sized> FromIterator<&'a AnsiGenericString<'a, S>>
     for AnsiGenericStrings<'a, S>
-where
-    S: fmt::Debug,
 {
     fn from_iter<Iterable: IntoIterator<Item = &'a AnsiGenericString<'a, S>>>(
         iter: Iterable,
@@ -432,7 +434,7 @@ where
         let count = upper.unwrap_or(lower);
         let mut ansi_strings = AnsiGenericStrings::with_capacity(count);
         for s in iter {
-            ansi_strings.push(s.clone());
+            ansi_strings.push(s);
         }
         ansi_strings
     }
@@ -473,7 +475,6 @@ impl Style {
     pub fn paint<'a, I, S: 'a + ToOwned + ?Sized>(self, input: I) -> AnsiGenericString<'a, S>
     where
         I: Into<Content<'a, S>>,
-        S: fmt::Debug,
     {
         AnsiGenericString {
             content: input.into(),
@@ -497,11 +498,10 @@ impl Color {
     pub fn paint<'a, I, S: 'a + ToOwned + ?Sized>(self, input: I) -> AnsiGenericString<'a, S>
     where
         I: Into<Content<'a, S>>,
-        S: fmt::Debug,
     {
         AnsiGenericString {
             content: input.into(),
-            style: self.foreground(),
+            style: self.as_foreground(),
             oscontrol: None,
         }
     }
@@ -524,12 +524,10 @@ impl<'a> AnsiByteString<'a> {
     }
 }
 
-impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericString<'a, S>
-where
-    S: fmt::Debug,
-{
-    // write the part within the styling prefix and suffix
-    fn write_inner<W: AnyWrite + ?Sized>(
+impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericString<'a, S> {
+    /// Write only the part of the generic string which lies within its styling
+    /// prefix and suffix: its `content` and `oscontrol`.
+    pub fn write_inner<W: AnyWrite + ?Sized>(
         content: &Content<'a, S>,
         oscontrol: &Option<OSControl<'a, S>>,
         w: &mut W,
@@ -555,7 +553,8 @@ where
         }
     }
 
-    fn write_to_any<W: AnyWrite + ?Sized>(&self, w: &mut W) -> WriteResult<W::Error>
+    /// Write this generic string to the given writer.
+    pub fn write_to_any<W: AnyWrite + ?Sized>(&self, w: &mut W) -> WriteResult<W::Error>
     where
         S: StrLike<'a, W>,
         str: StrLike<'a, W>,
@@ -622,7 +621,7 @@ where
 #[cfg(test)]
 mod tests {
     pub use super::super::{AnsiGenericString, AnsiStrings};
-    use crate::debug::assert_required;
+    use crate::assert_required;
     pub use crate::style::Color::*;
     pub use crate::style::Style;
 
@@ -640,7 +639,7 @@ mod tests {
 
         let joined = AnsiStrings(&[unstyled.clone()]).to_string();
         let expected = "\x1B]2;hello\x1B\\";
-        assert_required(joined, expected, None);
+        assert_required!(joined, expected);
     }
 
     #[test]
@@ -652,7 +651,7 @@ mod tests {
         // to plain strings
         let joined = AnsiStrings(&[unstyled.clone(), after.clone()]).to_string();
         let expected = format!("{}{}", unstyled, after);
-        assert_required(joined, expected, None);
+        assert_required!(joined, expected);
     }
 
     #[test]
@@ -664,7 +663,7 @@ mod tests {
         // to plain strings
         let joined = AnsiStrings(&[before.clone(), unstyled.clone()]).to_string();
         let expected = format!("{}{}", before.clone(), unstyled);
-        assert_required(joined, expected, None);
+        assert_required!(joined, expected);
     }
 
     #[test]
@@ -677,7 +676,7 @@ mod tests {
         // to plain strings
         let joined = AnsiStrings(&[before.clone(), unstyled.clone(), after.clone()]).to_string();
         let expected = format!("{}{}{}", before, unstyled, after);
-        assert_required(joined, expected, None);
+        assert_required!(joined, expected);
     }
 
     #[test]
@@ -695,7 +694,7 @@ mod tests {
                 after_g.style.suffix()
             )
         });
-        assert_required(joined, expected, None);
+        assert_required!(joined, expected);
     }
 
     #[test]
@@ -715,7 +714,7 @@ mod tests {
             ),
             unstyled
         );
-        assert_required(joined, expected, None);
+        assert_required!(joined, expected);
     }
 
     #[test]
@@ -742,7 +741,7 @@ mod tests {
                 after_g.style.suffix()
             )
         );
-        assert_required(joined, expected, None);
+        assert_required!(joined, expected);
     }
 
     #[test]
