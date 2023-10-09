@@ -48,7 +48,7 @@ where
 ///
 /// let plain_string = AnsiString::from("a plain string");
 /// let clone_string = plain_string.clone();
-/// assert_eq!(clone_string, plain_string);
+/// assert_eq!(clone_string.to_string(), plain_string.to_string());
 /// ```
 impl<'a, S: 'a + ToOwned + ?Sized> Clone for AnsiGenericString<'a, S>
 where
@@ -446,7 +446,7 @@ impl Style {
     /// use nu_ansi_term::Style;
     /// use nu_ansi_term::Color;
     ///
-    /// println!("{}", Style::new().foreground(Color::Blue));
+    /// println!("{}", Style::new().foreground(Color::Blue).paint("nice!"));
     /// ```
     #[inline]
     #[must_use]
@@ -509,14 +509,14 @@ where
     S: fmt::Debug,
 {
     // write the part within the styling prefix and suffix
-    fn write_inner<T: 'a + ToOwned + ?Sized, W: AnyWrite<Buf = T> + ?Sized>(
+    fn write_inner<W: AnyWrite + ?Sized>(
         content: &Content<'a, S>,
         oscontrol: &Option<OSControl<'a, S>>,
         w: &mut W,
     ) -> WriteResult<W::Error>
     where
-        S: StrLike<'a, T> + AsRef<T>,
-        str: AsRef<T>,
+        S: StrLike<'a, W>,
+        str: StrLike<'a, W>,
     {
         match oscontrol {
             Some(OSControl::Link { url: u, .. }) => {
@@ -535,13 +535,10 @@ where
         }
     }
 
-    fn write_to_any<T: 'a + ToOwned + ?Sized, W: AnyWrite<Buf = T> + ?Sized>(
-        &self,
-        w: &mut W,
-    ) -> WriteResult<W::Error>
+    fn write_to_any<W: AnyWrite + ?Sized>(&self, w: &mut W) -> WriteResult<W::Error>
     where
-        S: StrLike<'a, T> + AsRef<T>,
-        str: AsRef<T>,
+        S: StrLike<'a, W>,
+        str: StrLike<'a, W>,
     {
         write_any_fmt!(w, "{}", self.style.prefix())?;
         Self::write_inner(&self.content, &self.oscontrol, w)?;
@@ -572,13 +569,10 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S>
 where
     S: fmt::Debug,
 {
-    fn write_to_any<T: 'a + ToOwned + ?Sized, W: AnyWrite<Buf = T> + ?Sized>(
-        &'a self,
-        w: &mut W,
-    ) -> WriteResult<W::Error>
+    fn write_to_any<W: AnyWrite + ?Sized>(&'a self, w: &mut W) -> WriteResult<W::Error>
     where
-        S: StrLike<'a, T> + AsRef<T>,
-        str: AsRef<T>,
+        S: StrLike<'a, W>,
+        str: StrLike<'a, W>,
     {
         let mut last_is_plain = true;
 
@@ -622,7 +616,6 @@ mod tests {
     #[test]
     fn title_solo() {
         let unstyled = AnsiGenericString::title("hello");
-
 
         let joined = AnsiStrings(&[unstyled.clone()]).to_string();
         let required = "\x1B]2;hello\x1B\\";

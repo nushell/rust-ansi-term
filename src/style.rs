@@ -503,10 +503,10 @@ impl Color {
     /// ```
     /// use nu_ansi_term::Color;
     ///
-    /// let style = Color::Rgb(31, 31, 31).with_bg(Color::White);
+    /// let style = Color::Rgb(31, 31, 31).on_background(Color::White);
     /// println!("{}", style.paint("eyyyy"));
     /// ```
-    pub fn with_bg(self, bg: Self) -> Style {
+    pub fn on_background(self, bg: Self) -> Style {
         Style::new().foreground(self).background(bg)
     }
 

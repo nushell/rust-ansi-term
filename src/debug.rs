@@ -13,19 +13,15 @@ use std::{
 };
 
 fn debug_write_style_flags_to(f: &mut dyn fmt::Write, flags: StyleFlags) -> Result<(), fmt::Error> {
-    f.write_str(
-        &flags
-            .iter_names()
-            .filter_map(|n| {
-                let name = n.0;
-                if name == "FOREGROUND" || name == "BACKGROUND" {
-                    None
-                } else {
-                    name.to_lowercase().into()
-                }
-            })
-            .join(", "),
-    )
+    let mut flags = flags
+        .iter_names()
+        .map(|n| {
+            let name = n.0;
+            name.to_lowercase()
+        })
+        .collect::<Vec<String>>();
+    flags.sort_unstable();
+    f.write_str(&flags.join(", "))
 }
 
 fn debug_write_style_to(
@@ -87,10 +83,8 @@ fn debug_style_to_string(
 /// ```
 ///     use nu_ansi_term::Color::{Red, Blue};
 ///     assert_eq!(
-///         "Style { \
-///             flags: StyleFlags { FOREGROUND, BACKGROUND, BOLD, ITALIC },\
-///             foreground: Red, background: Blue }",
-///        format!("{:?}", Red.with_bg(Blue).bold().italic())
+///         "Style { bold, italic, foreground(Red), background(Blue) }",
+///        format!("{:#?}", Red.on_background(Blue).bold().italic())
 ///     );
 /// ```
 impl Debug for Style {
@@ -122,8 +116,8 @@ impl Debug for Style {
 ///
 /// ```
 ///     use nu_ansi_term::Color::{Red, Blue};
-///     assert_eq!("Style { foreground(Red),.with_bg(Blue), bold, italic }",
-///                format!("{:?}", Red.with_bg(Blue).bold().italic()));
+///     assert_eq!("background, bold, foreground, italic",
+///                format!("{:#?}", Red.on_background(Blue).bold().italic().flags));
 /// ```
 impl Debug for StyleFlags {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -419,7 +413,7 @@ mod test {
         [italic: italic]
         [both: bold, italic]
         [red: Red.foreground(), "Style { foreground(Red) }"]
-        [redblue: Red.with_bg(Rgb(3, 2, 4)), "Style { foreground(Red), background(Rgb(3, 2, 4)) }"]
-        [everything: Red.with_bg(Blue).blink().bold().dimmed().hidden().italic().reverse().strikethrough().underline(), "Style { blink, bold, dimmed, hidden, italic, reverse, strikethrough, underline, foreground(Red), background(Blue) }"]
+        [redblue: Red.on_background(Rgb(3, 2, 4)), "Style { foreground(Red), background(Rgb(3, 2, 4)) }"]
+        [everything: Red.on_background(Blue).blink().bold().dimmed().hidden().italic().reverse().strikethrough().underline(), "Style { blink, bold, dimmed, hidden, italic, reverse, strikethrough, underline, foreground(Red), background(Blue) }"]
     );
 }
