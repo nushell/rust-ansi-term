@@ -53,8 +53,11 @@ impl InnerWidthMapping {
 /// Whether the input string is a literal. If yes, it contains the inner width mappings.
 #[derive(Clone, PartialEq, Eq)]
 enum InputStringKind {
-    NotALiteral,
-    Literal {
+    // Actual data that must be parsed
+    LitString,
+    // I think this is a string that contains another string inside it.
+    // For example: "\"hello world!\"" would be a meta string
+    MetaString {
         width_mappings: Vec<InnerWidthMapping>,
     },
 }
@@ -333,8 +336,8 @@ impl<'a> Parser<'a> {
     ) -> Parser<'a> {
         let input_string_kind = find_width_map_from_snippet(s, snippet, style);
         let (width_map, is_source_literal) = match input_string_kind {
-            InputStringKind::Literal { width_mappings } => (width_mappings, true),
-            InputStringKind::NotALiteral => (Vec::new(), false),
+            InputStringKind::MetaString { width_mappings } => (width_mappings, true),
+            InputStringKind::LitString => (Vec::new(), false),
         };
 
         Parser {
@@ -936,11 +939,11 @@ fn find_width_map_from_snippet(
 ) -> InputStringKind {
     let snippet = match snippet {
         Some(ref s) if s.starts_with('"') || s.starts_with("r\"") || s.starts_with("r#") => s,
-        _ => return InputStringKind::NotALiteral,
+        _ => return InputStringKind::LitString,
     };
 
     if str_style.is_some() {
-        return InputStringKind::Literal {
+        return InputStringKind::MetaString {
             width_mappings: Vec::new(),
         };
     }
@@ -955,7 +958,7 @@ fn find_width_map_from_snippet(
     // Alternatively, we could just count the trailing newlines and only trim one from the input if they don't match up.
     let input_no_nl = input.trim_end_matches('\n');
     let Some(unescaped) = unescape_string(snippet) else {
-        return InputStringKind::NotALiteral;
+        return InputStringKind::LitString;
     };
 
     let unescaped_no_nl = unescaped.trim_end_matches('\n');
@@ -963,7 +966,7 @@ fn find_width_map_from_snippet(
     if unescaped_no_nl != input_no_nl {
         // The source string that we're pointing at isn't our input, so spans pointing at it will be incorrect.
         // This can for example happen with proc macros that respan generated literals.
-        return InputStringKind::NotALiteral;
+        return InputStringKind::LitString;
     }
 
     let mut s = snippet.char_indices();
@@ -1048,7 +1051,7 @@ fn find_width_map_from_snippet(
         }
     }
 
-    InputStringKind::Literal { width_mappings }
+    InputStringKind::MetaString { width_mappings }
 }
 
 fn unescape_string(string: &str) -> Option<string::String> {
