@@ -1,6 +1,7 @@
 mod parse_fmt_str;
 use parse_fmt_str::Parser;
-use quote::quote;
+use proc_macro2::Span;
+use quote::{quote, ToTokens};
 use syn::{
     ext::IdentExt,
     parse::{Parse, ParseStream},
@@ -60,14 +61,14 @@ impl Parse for FormatArgs {
     }
 }
 
-fn extract_inline_named_args(fmt_s: String) -> Vec<String> {
+fn extract_inline_named_args(fmt_s: String) -> Vec<Ident> {
     Parser::new(&fmt_s, false)
         .filter_map(|piece| match piece {
             parse_fmt_str::Piece::String(_) => None,
             parse_fmt_str::Piece::NextArgument(arg) => match arg.position {
                 parse_fmt_str::Position::ImplicitlyLocated(_)
                 | parse_fmt_str::Position::IndexLocated(_) => None,
-                parse_fmt_str::Position::Named(named) => Some(named.to_string()),
+                parse_fmt_str::Position::Named(named) => Some(Ident::new(named, Span::call_site())),
             },
         })
         .collect()
@@ -81,26 +82,24 @@ pub fn ansi_generics(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
         mut explicit_args,
     } = parse_macro_input!(input);
 
-    let inline_named_args = extract_inline_named_args(fmt_s.value());
-    explicit_args = explicit_args
-        .into_iter()
-        .filter_map(|arg| match arg {
-            x @ ExplicitArg::Positional(_) => Some(x),
-            ExplicitArg::Named { name, value } => {
-                if inline_named_args.contains(&name.to_string()) {
-                    unimplemented!()
-                } else {
-                    Some(ExplicitArg::Named { name, value })
-                }
+    let mut inline_named_args = extract_inline_named_args(fmt_s.value());
+
+    // Remove any inline named args that are specified explicitly, e.g.:
+    // format!("hello {kitty}!", kitty="Gamsiz");
+    explicit_args.iter().for_each(|arg| match arg {
+        x @ ExplicitArg::Positional(_) => {}
+        ExplicitArg::Named { name, value } => {
+            if let Some(position) = inline_named_args.iter().position(|x| x == name) {
+                inline_named_args.remove(position);
             }
-        })
-        .collect();
+        }
+    });
 
     quote! {
         $crate::AnsiFormatArgs {
             fmt_s: &'static str,
             fmt_args_producer: F,
-            args: $crate::AnsiGenericStrings::from_iter([#(#explicit_args),*]),
+            args: $crate::AnsiGenericStrings::from_iter([#(#explicit_args),* #(#inline_named_args),*]),
         }
     }
     .into()
