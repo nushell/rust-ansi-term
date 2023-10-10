@@ -60,7 +60,7 @@ impl Parse for FormatArgs {
 }
 
 fn extract_inline_args(fmt_s: String) -> Vec<String> {
-    Parser::new(&fmt_s, None, false);
+    Parser::new(&fmt_s, false);
     unimplemented!()
 }
 

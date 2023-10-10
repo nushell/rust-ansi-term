@@ -194,8 +194,6 @@ pub struct Parser<'a> {
     pub errors: Vec<ParseError>,
     /// Current position of implicit positional argument pointer
     pub curarg: usize,
-    /// `Some(raw count)` when the string is "raw", used to position spans correctly
-    style: Option<usize>,
     /// Start and end byte offset of every successfully parsed argument
     pub arg_places: Vec<InnerSpan>,
     /// Characters whose length has been changed from their in-code representation
@@ -276,7 +274,7 @@ impl<'a> Iterator for Parser<'a> {
 
 impl<'a> Parser<'a> {
     /// Creates a new parser for the given format string
-    pub fn new(s: &'a str, style: Option<usize>, append_newline: bool) -> Parser<'a> {
+    pub fn new(s: &'a str, append_newline: bool) -> Parser<'a> {
         // If no snippet is given (and we do not plan to give a snippet, the
         // following function always returns InputStringKind::LitString), so we
         // might as well eliminate the other branch entirely.
@@ -287,7 +285,6 @@ impl<'a> Parser<'a> {
             cur: s.char_indices().peekable(),
             errors: vec![],
             curarg: 0,
-            style,
             arg_places: vec![],
             width_map,
             last_opening_brace: None,
@@ -376,11 +373,8 @@ impl<'a> Parser<'a> {
     }
 
     fn to_span_index(&self, pos: usize) -> InnerOffset {
-        // This handles the raw string case, the raw argument is the number of #
-        // in r###"..."### (we need to add one because of the `r`).
-        let raw = self.style.map_or(0, |raw| raw + 1);
         let pos = self.remap_pos(pos);
-        InnerOffset(raw + pos.0 + 1)
+        InnerOffset(pos.0 + 1)
     }
 
     fn to_span_width(&self, pos: usize) -> usize {
@@ -858,7 +852,7 @@ mod tests {
 
     #[track_caller]
     fn same(fmt: &'static str, p: &[Piece<'static>]) {
-        let parser = Parser::new(fmt, None, false);
+        let parser = Parser::new(fmt, false);
         assert_eq!(parser.collect::<Vec<Piece<'static>>>(), p);
     }
 
@@ -881,7 +875,7 @@ mod tests {
     }
 
     fn musterr(s: &str) {
-        let mut p = Parser::new(s, None, false);
+        let mut p = Parser::new(s, false);
         p.next();
         assert!(!p.errors.is_empty());
     }
