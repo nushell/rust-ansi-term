@@ -309,7 +309,6 @@ impl<'a> Parser<'a> {
     pub fn new(
         s: &'a str,
         style: Option<usize>,
-        snippet: Option<string::String>,
         append_newline: bool,
         mode: ParseMode,
     ) -> Parser<'a> {
@@ -930,7 +929,7 @@ mod tests {
 
     #[track_caller]
     fn same(fmt: &'static str, p: &[Piece<'static>]) {
-        let parser = Parser::new(fmt, None, None, false, ParseMode::Format);
+        let parser = Parser::new(fmt, None, false, ParseMode::Format);
         assert_eq!(parser.collect::<Vec<Piece<'static>>>(), p);
     }
 
@@ -953,7 +952,7 @@ mod tests {
     }
 
     fn musterr(s: &str) {
-        let mut p = Parser::new(s, None, None, false, ParseMode::Format);
+        let mut p = Parser::new(s, None, false, ParseMode::Format);
         p.next();
         assert!(!p.errors.is_empty());
     }
