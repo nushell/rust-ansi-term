@@ -1,19 +1,15 @@
 //! The portion of
 //! [rustc_parse_format](https://crates.io/crates/ra-ap-rustc_parse_format) that
-//! is used to identify positional arguments.
-#![deny(rustc::untranslatable_diagnostic)]
-#![deny(rustc::diagnostic_outside_of_impl)]
-// We want to be able to build this crate with a stable compiler, so no
-// `#![feature]` attributes should be added.
+//! is used to identify positional arguments. Source code: https://github.com/rust-lang/rust/blob/master/compiler/rustc_parse_format/src/lib.rs
 
+use ra_ap_rustc_index as rustc_index;
+use ra_ap_rustc_lexer as rustc_lexer;
+use rustc_lexer::unescape;
 pub use Alignment::*;
 pub use Count::*;
 pub use Piece::*;
 pub use Position::*;
 
-use ra_ap_rustc_index as rustc_index;
-use ra_ap_rustc_lexer as rustc_lexer;
-use rustc_lexer::unescape;
 use std::iter;
 use std::str;
 use std::string;
@@ -61,6 +57,15 @@ enum InputStringKind {
     Literal {
         width_mappings: Vec<InnerWidthMapping>,
     },
+}
+
+/// The type of format string that we are parsing.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum ParseMode {
+    /// A normal format string as per `format_args!`.
+    Format,
+    /// An inline assembly template string for `asm!`.
+    InlineAsm,
 }
 
 #[derive(Copy, Clone)]
@@ -132,9 +137,9 @@ pub struct FormatSpec<'a> {
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Position<'a> {
     /// The argument is implied to be located at an index
-    ImplicitlyIs(usize),
+    ImplicitlyLocated(usize),
     /// The argument is located at a specific index given in the format,
-    IndexIs(usize),
+    IndexLocated(usize),
     /// The argument has a name.
     Named(&'a str),
 }
@@ -142,10 +147,23 @@ pub enum Position<'a> {
 impl Position<'_> {
     pub fn index(&self) -> Option<usize> {
         match self {
-            IndexIs(i, ..) | ImplicitlyIs(i) => Some(*i),
+            IndexLocated(i, ..) | ImplicitlyLocated(i) => Some(*i),
             _ => None,
         }
     }
+}
+
+/// Enum of alignments which are supported.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum Alignment {
+    /// The value will be aligned to the left.
+    Left,
+    /// The value will be aligned to the right.
+    Right,
+    /// The value will be aligned in the center.
+    Center,
+    /// The value will take on a default alignment.
+    Unknown,
 }
 
 /// Enum for the sign flags.
@@ -171,15 +189,15 @@ pub enum DebugHex {
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Count<'a> {
     /// The count is specified explicitly.
-    CountIs(usize),
+    Explicit(usize),
     /// The count is specified by the argument with the given name.
-    CountIsName(&'a str, InnerSpan),
+    ByName(&'a str, InnerSpan),
     /// The count is specified by the argument at the given index.
-    CountIsParam(usize),
+    ByParam(usize),
     /// The count is specified by a star (like in `{:.*}`) that refers to the argument at the given index.
-    CountIsStar(usize),
+    Star(usize),
     /// The count is implied and cannot be explicitly specified.
-    CountImplied,
+    Implied,
 }
 
 pub struct ParseError {
@@ -208,6 +226,7 @@ pub enum Suggestion {
 /// This is a recursive-descent parser for the sake of simplicity, and if
 /// necessary there's probably lots of room for improvement performance-wise.
 pub struct Parser<'a> {
+    mode: ParseMode,
     input: &'a str,
     cur: iter::Peekable<str::CharIndices<'a>>,
     /// Error messages accumulated during parsing
@@ -264,13 +283,11 @@ impl<'a> Iterator for Parser<'a> {
                                     lbrace_byte_pos.to(InnerOffset(rbrace_byte_pos.0 + width)),
                                 );
                             }
-                        } else {
-                            if let Some(&(_, maybe)) = self.cur.peek() {
-                                if maybe == '?' {
-                                    self.suggest_format();
-                                } else {
-                                    self.suggest_positional_arg_instead_of_captured_arg(arg);
-                                }
+                        } else if let Some(&(_, maybe)) = self.cur.peek() {
+                            if maybe == '?' {
+                                self.suggest_format();
+                            } else {
+                                self.suggest_positional_arg_instead_of_captured_arg(arg);
                             }
                         }
                         Some(NextArgument(Box::new(arg)))
@@ -312,6 +329,7 @@ impl<'a> Parser<'a> {
         style: Option<usize>,
         snippet: Option<string::String>,
         append_newline: bool,
+        mode: ParseMode,
     ) -> Parser<'a> {
         let input_string_kind = find_width_map_from_snippet(s, snippet, style);
         let (width_map, is_source_literal) = match input_string_kind {
@@ -320,6 +338,7 @@ impl<'a> Parser<'a> {
         };
 
         Parser {
+            mode,
             input: s,
             cur: s.char_indices().peekable(),
             errors: vec![],
@@ -532,7 +551,10 @@ impl<'a> Parser<'a> {
             .map_or(start, |(end, _)| self.to_span_index(end));
         let position_span = start.to(end);
 
-        let format = self.format();
+        let format = match self.mode {
+            ParseMode::Format => self.format(),
+            ParseMode::InlineAsm => self.inline_asm(),
+        };
 
         // Resolve position after parsing format spec.
         let pos = match pos {
@@ -540,7 +562,7 @@ impl<'a> Parser<'a> {
             None => {
                 let i = self.curarg;
                 self.curarg += 1;
-                ImplicitlyIs(i)
+                ImplicitlyLocated(i)
             }
         };
 
@@ -557,7 +579,7 @@ impl<'a> Parser<'a> {
     /// consuming a macro argument, `None` if it's the case.
     fn position(&mut self) -> Option<Position<'a>> {
         if let Some(i) = self.integer() {
-            Some(IndexIs(i))
+            Some(IndexLocated(i))
         } else {
             match self.cur.peek() {
                 Some(&(lo, c)) if rustc_lexer::is_id_start(c) => {
@@ -614,14 +636,14 @@ impl<'a> Parser<'a> {
         let mut spec = FormatSpec {
             fill: None,
             fill_span: None,
-            align: AlignUnknown,
+            align: Unknown,
             sign: None,
             alternate: false,
             zero_pad: false,
             debug_hex: None,
-            precision: CountImplied,
+            precision: Implied,
             precision_span: None,
-            width: CountImplied,
+            width: Implied,
             width_span: None,
             ty: &self.input[..0],
             ty_span: None,
@@ -640,11 +662,11 @@ impl<'a> Parser<'a> {
         }
         // Alignment
         if self.consume('<') {
-            spec.align = AlignLeft;
+            spec.align = Left;
         } else if self.consume('>') {
-            spec.align = AlignRight;
+            spec.align = Right;
         } else if self.consume('^') {
-            spec.align = AlignCenter;
+            spec.align = Center;
         }
         // Sign flags
         if self.consume('+') {
@@ -665,7 +687,7 @@ impl<'a> Parser<'a> {
             // and no count, but this is better if we instead interpret this as
             // no '0' flag and '0$' as the width instead.
             if let Some(end) = self.consume_pos('$') {
-                spec.width = CountIsParam(0);
+                spec.width = ByParam(0);
                 spec.width_span = Some(self.span(end - 1, end + 1));
                 havewidth = true;
             } else {
@@ -676,7 +698,7 @@ impl<'a> Parser<'a> {
         if !havewidth {
             let start = self.current_pos();
             spec.width = self.count(start);
-            if spec.width != CountImplied {
+            if spec.width != Implied {
                 let end = self.current_pos();
                 spec.width_span = Some(self.span(start, end));
             }
@@ -688,7 +710,7 @@ impl<'a> Parser<'a> {
                 // We can do this immediately as `position` is resolved later.
                 let i = self.curarg;
                 self.curarg += 1;
-                spec.precision = CountIsStar(i);
+                spec.precision = Star(i);
             } else {
                 spec.precision = self.count(start + 1);
             }
@@ -730,14 +752,14 @@ impl<'a> Parser<'a> {
         let mut spec = FormatSpec {
             fill: None,
             fill_span: None,
-            align: AlignUnknown,
+            align: Unknown,
             sign: None,
             alternate: false,
             zero_pad: false,
             debug_hex: None,
-            precision: CountImplied,
+            precision: Implied,
             precision_span: None,
-            width: CountImplied,
+            width: Implied,
             width_span: None,
             ty: &self.input[..0],
             ty_span: None,
@@ -762,22 +784,22 @@ impl<'a> Parser<'a> {
     fn count(&mut self, start: usize) -> Count<'a> {
         if let Some(i) = self.integer() {
             if self.consume('$') {
-                CountIsParam(i)
+                ByParam(i)
             } else {
-                CountIs(i)
+                Explicit(i)
             }
         } else {
             let tmp = self.cur.clone();
             let word = self.word();
             if word.is_empty() {
                 self.cur = tmp;
-                CountImplied
+                Implied
             } else if let Some(end) = self.consume_pos('$') {
                 let name_span = self.span(start, end);
-                CountIsName(word, name_span)
+                ByName(word, name_span)
             } else {
                 self.cur = tmp;
-                CountImplied
+                Implied
             }
         }
     }
@@ -1045,3 +1067,476 @@ fn unescape_string(string: &str) -> Option<string::String> {
 // Assert a reasonable size for `Piece`
 #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
 rustc_index::static_assert_size!(Piece<'_>, 16);
+
+/// https://github.com/rust-lang/rust/blob/master/compiler/rustc_parse_format/src/tests.rs
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[track_caller]
+    fn same(fmt: &'static str, p: &[Piece<'static>]) {
+        let parser = Parser::new(fmt, None, None, false, ParseMode::Format);
+        assert_eq!(parser.collect::<Vec<Piece<'static>>>(), p);
+    }
+
+    fn fmtdflt() -> FormatSpec<'static> {
+        FormatSpec {
+            fill: None,
+            fill_span: None,
+            align: Unknown,
+            sign: None,
+            alternate: false,
+            zero_pad: false,
+            debug_hex: None,
+            precision: Implied,
+            width: Implied,
+            precision_span: None,
+            width_span: None,
+            ty: "",
+            ty_span: None,
+        }
+    }
+
+    fn musterr(s: &str) {
+        let mut p = Parser::new(s, None, None, false, ParseMode::Format);
+        p.next();
+        assert!(!p.errors.is_empty());
+    }
+
+    #[test]
+    fn simple() {
+        same("asdf", &[String("asdf")]);
+        same("a{{b", &[String("a"), String("{b")]);
+        same("a}}b", &[String("a"), String("}b")]);
+        same("a}}", &[String("a"), String("}")]);
+        same("}}", &[String("}")]);
+        same("\\}}", &[String("\\"), String("}")]);
+    }
+
+    #[test]
+    fn invalid01() {
+        musterr("{")
+    }
+    #[test]
+    fn invalid02() {
+        musterr("}")
+    }
+    #[test]
+    fn invalid04() {
+        musterr("{3a}")
+    }
+    #[test]
+    fn invalid05() {
+        musterr("{:|}")
+    }
+    #[test]
+    fn invalid06() {
+        musterr("{:>>>}")
+    }
+
+    #[test]
+    fn invalid_position() {
+        musterr("{18446744073709551616}");
+    }
+
+    #[test]
+    fn invalid_width() {
+        musterr("{:18446744073709551616}");
+    }
+
+    #[test]
+    fn invalid_precision() {
+        musterr("{:.18446744073709551616}");
+    }
+
+    #[test]
+    fn format_nothing() {
+        same(
+            "{}",
+            &[NextArgument(Box::new(Argument {
+                position: ImplicitlyLocated(0),
+                position_span: InnerSpan { start: 2, end: 2 },
+                format: fmtdflt(),
+            }))],
+        );
+    }
+    #[test]
+    fn format_position() {
+        same(
+            "{3}",
+            &[NextArgument(Box::new(Argument {
+                position: IndexLocated(3),
+                position_span: InnerSpan { start: 2, end: 3 },
+                format: fmtdflt(),
+            }))],
+        );
+    }
+    #[test]
+    fn format_position_nothing_else() {
+        same(
+            "{3:}",
+            &[NextArgument(Box::new(Argument {
+                position: IndexLocated(3),
+                position_span: InnerSpan { start: 2, end: 3 },
+                format: fmtdflt(),
+            }))],
+        );
+    }
+    #[test]
+    fn format_named() {
+        same(
+            "{name}",
+            &[NextArgument(Box::new(Argument {
+                position: Named("name"),
+                position_span: InnerSpan { start: 2, end: 6 },
+                format: fmtdflt(),
+            }))],
+        )
+    }
+    #[test]
+    fn format_type() {
+        same(
+            "{3:x}",
+            &[NextArgument(Box::new(Argument {
+                position: IndexLocated(3),
+                position_span: InnerSpan { start: 2, end: 3 },
+                format: FormatSpec {
+                    fill: None,
+                    fill_span: None,
+                    align: Unknown,
+                    sign: None,
+                    alternate: false,
+                    zero_pad: false,
+                    debug_hex: None,
+                    precision: Implied,
+                    width: Implied,
+                    precision_span: None,
+                    width_span: None,
+                    ty: "x",
+                    ty_span: None,
+                },
+            }))],
+        );
+    }
+    #[test]
+    fn format_align_fill() {
+        same(
+            "{3:>}",
+            &[NextArgument(Box::new(Argument {
+                position: IndexLocated(3),
+                position_span: InnerSpan { start: 2, end: 3 },
+                format: FormatSpec {
+                    fill: None,
+                    fill_span: None,
+                    align: Right,
+                    sign: None,
+                    alternate: false,
+                    zero_pad: false,
+                    debug_hex: None,
+                    precision: Implied,
+                    width: Implied,
+                    precision_span: None,
+                    width_span: None,
+                    ty: "",
+                    ty_span: None,
+                },
+            }))],
+        );
+        same(
+            "{3:0<}",
+            &[NextArgument(Box::new(Argument {
+                position: IndexLocated(3),
+                position_span: InnerSpan { start: 2, end: 3 },
+                format: FormatSpec {
+                    fill: Some('0'),
+                    fill_span: Some(InnerSpan::new(4, 5)),
+                    align: Left,
+                    sign: None,
+                    alternate: false,
+                    zero_pad: false,
+                    debug_hex: None,
+                    precision: Implied,
+                    width: Implied,
+                    precision_span: None,
+                    width_span: None,
+                    ty: "",
+                    ty_span: None,
+                },
+            }))],
+        );
+        same(
+            "{3:*<abcd}",
+            &[NextArgument(Box::new(Argument {
+                position: IndexLocated(3),
+                position_span: InnerSpan { start: 2, end: 3 },
+                format: FormatSpec {
+                    fill: Some('*'),
+                    fill_span: Some(InnerSpan::new(4, 5)),
+                    align: Left,
+                    sign: None,
+                    alternate: false,
+                    zero_pad: false,
+                    debug_hex: None,
+                    precision: Implied,
+                    width: Implied,
+                    precision_span: None,
+                    width_span: None,
+                    ty: "abcd",
+                    ty_span: Some(InnerSpan::new(6, 10)),
+                },
+            }))],
+        );
+    }
+    #[test]
+    fn format_counts() {
+        same(
+            "{:10x}",
+            &[NextArgument(Box::new(Argument {
+                position: ImplicitlyLocated(0),
+                position_span: InnerSpan { start: 2, end: 2 },
+                format: FormatSpec {
+                    fill: None,
+                    fill_span: None,
+                    align: Unknown,
+                    sign: None,
+                    alternate: false,
+                    zero_pad: false,
+                    debug_hex: None,
+                    precision: Implied,
+                    precision_span: None,
+                    width: Explicit(10),
+                    width_span: Some(InnerSpan { start: 3, end: 5 }),
+                    ty: "x",
+                    ty_span: None,
+                },
+            }))],
+        );
+        same(
+            "{:10$.10x}",
+            &[NextArgument(Box::new(Argument {
+                position: ImplicitlyLocated(0),
+                position_span: InnerSpan { start: 2, end: 2 },
+                format: FormatSpec {
+                    fill: None,
+                    fill_span: None,
+                    align: Unknown,
+                    sign: None,
+                    alternate: false,
+                    zero_pad: false,
+                    debug_hex: None,
+                    precision: Explicit(10),
+                    precision_span: Some(InnerSpan { start: 6, end: 9 }),
+                    width: ByParam(10),
+                    width_span: Some(InnerSpan { start: 3, end: 6 }),
+                    ty: "x",
+                    ty_span: None,
+                },
+            }))],
+        );
+        same(
+            "{1:0$.10x}",
+            &[NextArgument(Box::new(Argument {
+                position: IndexLocated(1),
+                position_span: InnerSpan { start: 2, end: 3 },
+                format: FormatSpec {
+                    fill: None,
+                    fill_span: None,
+                    align: Unknown,
+                    sign: None,
+                    alternate: false,
+                    zero_pad: false,
+                    debug_hex: None,
+                    precision: Explicit(10),
+                    precision_span: Some(InnerSpan { start: 6, end: 9 }),
+                    width: ByParam(0),
+                    width_span: Some(InnerSpan { start: 4, end: 6 }),
+                    ty: "x",
+                    ty_span: None,
+                },
+            }))],
+        );
+        same(
+            "{:.*x}",
+            &[NextArgument(Box::new(Argument {
+                position: ImplicitlyLocated(1),
+                position_span: InnerSpan { start: 2, end: 2 },
+                format: FormatSpec {
+                    fill: None,
+                    fill_span: None,
+                    align: Unknown,
+                    sign: None,
+                    alternate: false,
+                    zero_pad: false,
+                    debug_hex: None,
+                    precision: Star(0),
+                    precision_span: Some(InnerSpan { start: 3, end: 5 }),
+                    width: Implied,
+                    width_span: None,
+                    ty: "x",
+                    ty_span: None,
+                },
+            }))],
+        );
+        same(
+            "{:.10$x}",
+            &[NextArgument(Box::new(Argument {
+                position: ImplicitlyLocated(0),
+                position_span: InnerSpan { start: 2, end: 2 },
+                format: FormatSpec {
+                    fill: None,
+                    fill_span: None,
+                    align: Unknown,
+                    sign: None,
+                    alternate: false,
+                    zero_pad: false,
+                    debug_hex: None,
+                    precision: ByParam(10),
+                    width: Implied,
+                    precision_span: Some(InnerSpan::new(3, 7)),
+                    width_span: None,
+                    ty: "x",
+                    ty_span: None,
+                },
+            }))],
+        );
+        same(
+            "{:a$.b$?}",
+            &[NextArgument(Box::new(Argument {
+                position: ImplicitlyLocated(0),
+                position_span: InnerSpan { start: 2, end: 2 },
+                format: FormatSpec {
+                    fill: None,
+                    fill_span: None,
+                    align: Unknown,
+                    sign: None,
+                    alternate: false,
+                    zero_pad: false,
+                    debug_hex: None,
+                    precision: ByName("b", InnerSpan { start: 6, end: 7 }),
+                    precision_span: Some(InnerSpan { start: 5, end: 8 }),
+                    width: ByName("a", InnerSpan { start: 3, end: 4 }),
+                    width_span: Some(InnerSpan { start: 3, end: 5 }),
+                    ty: "?",
+                    ty_span: None,
+                },
+            }))],
+        );
+        same(
+            "{:.4}",
+            &[NextArgument(Box::new(Argument {
+                position: ImplicitlyLocated(0),
+                position_span: InnerSpan { start: 2, end: 2 },
+                format: FormatSpec {
+                    fill: None,
+                    fill_span: None,
+                    align: Unknown,
+                    sign: None,
+                    alternate: false,
+                    zero_pad: false,
+                    debug_hex: None,
+                    precision: Explicit(4),
+                    precision_span: Some(InnerSpan { start: 3, end: 5 }),
+                    width: Implied,
+                    width_span: None,
+                    ty: "",
+                    ty_span: None,
+                },
+            }))],
+        )
+    }
+    #[test]
+    fn format_flags() {
+        same(
+            "{:-}",
+            &[NextArgument(Box::new(Argument {
+                position: ImplicitlyLocated(0),
+                position_span: InnerSpan { start: 2, end: 2 },
+                format: FormatSpec {
+                    fill: None,
+                    fill_span: None,
+                    align: Unknown,
+                    sign: Some(Sign::Minus),
+                    alternate: false,
+                    zero_pad: false,
+                    debug_hex: None,
+                    precision: Implied,
+                    width: Implied,
+                    precision_span: None,
+                    width_span: None,
+                    ty: "",
+                    ty_span: None,
+                },
+            }))],
+        );
+        same(
+            "{:+#}",
+            &[NextArgument(Box::new(Argument {
+                position: ImplicitlyLocated(0),
+                position_span: InnerSpan { start: 2, end: 2 },
+                format: FormatSpec {
+                    fill: None,
+                    fill_span: None,
+                    align: Unknown,
+                    sign: Some(Sign::Plus),
+                    alternate: true,
+                    zero_pad: false,
+                    debug_hex: None,
+                    precision: Implied,
+                    width: Implied,
+                    precision_span: None,
+                    width_span: None,
+                    ty: "",
+                    ty_span: None,
+                },
+            }))],
+        );
+    }
+    #[test]
+    fn format_mixture() {
+        same(
+            "abcd {3:x} efg",
+            &[
+                String("abcd "),
+                NextArgument(Box::new(Argument {
+                    position: IndexLocated(3),
+                    position_span: InnerSpan { start: 7, end: 8 },
+                    format: FormatSpec {
+                        fill: None,
+                        fill_span: None,
+                        align: Unknown,
+                        sign: None,
+                        alternate: false,
+                        zero_pad: false,
+                        debug_hex: None,
+                        precision: Implied,
+                        width: Implied,
+                        precision_span: None,
+                        width_span: None,
+                        ty: "x",
+                        ty_span: None,
+                    },
+                })),
+                String(" efg"),
+            ],
+        );
+    }
+    #[test]
+    fn format_whitespace() {
+        same(
+            "{ }",
+            &[NextArgument(Box::new(Argument {
+                position: ImplicitlyLocated(0),
+                position_span: InnerSpan { start: 2, end: 3 },
+                format: fmtdflt(),
+            }))],
+        );
+        same(
+            "{  }",
+            &[NextArgument(Box::new(Argument {
+                position: ImplicitlyLocated(0),
+                position_span: InnerSpan { start: 2, end: 4 },
+                format: fmtdflt(),
+            }))],
+        );
+    }
+}
