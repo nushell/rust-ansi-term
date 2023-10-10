@@ -1,5 +1,5 @@
 mod parse_fmt_str;
-use parse_fmt_str::{Argument, Parser};
+use parse_fmt_str::Parser;
 use quote::quote;
 use syn::{
     ext::IdentExt,
@@ -16,19 +16,21 @@ use syn::{
 //     pub args: AnsiGenericStrings<'a, S>,
 // }
 
+enum ExplicitArg {
+    Positional(Expr),
+    Named { name: Ident, value: Expr },
+}
 /// ansi_generics!("{}{}", Color::Red.paint("hello "), Color::Blue.paint("kitty!"));
 /// Form of struct taken from example at:https://docs.rs/syn/latest/syn/struct.Macro.html?search=parse#method.parse_body
 struct FormatArgs {
     fmt_s: LitStr,
-    _positional_args: Vec<Expr>,
-    _named_args: Vec<(Ident, Expr)>,
+    explicit_args: Vec<ExplicitArg>,
 }
 
 impl Parse for FormatArgs {
     fn parse(input: ParseStream) -> SynResult<Self> {
         let fmt_s: LitStr = input.parse()?;
-        let mut positional_args = Vec::new();
-        let mut named_args = Vec::new();
+        let mut ordered_args = Vec::new();
 
         while !input.is_empty() {
             input.parse::<Token![,]>()?;
@@ -40,7 +42,7 @@ impl Parse for FormatArgs {
                     let name: Ident = input.call(Ident::parse_any)?;
                     input.parse::<Token![=]>()?;
                     let value: Expr = input.parse()?;
-                    named_args.push((name, value));
+                    ordered_args.push(ExplicitArg::Named { name, value });
                     if input.is_empty() {
                         break;
                     }
@@ -48,18 +50,17 @@ impl Parse for FormatArgs {
                 }
                 break;
             }
-            positional_args.push(input.parse()?);
+            ordered_args.push(ExplicitArg::Positional(input.parse()?));
         }
 
         Ok(FormatArgs {
             fmt_s,
-            _positional_args: positional_args,
-            _named_args: named_args,
+            explicit_args: ordered_args,
         })
     }
 }
 
-fn extract_inline_args(fmt_s: String) -> Vec<String> {
+fn extract_inline_named_args(fmt_s: String) -> Vec<String> {
     Parser::new(&fmt_s, false)
         .filter_map(|piece| match piece {
             parse_fmt_str::Piece::String(_) => None,
@@ -77,17 +78,29 @@ fn extract_inline_args(fmt_s: String) -> Vec<String> {
 pub fn ansi_generics(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let FormatArgs {
         fmt_s,
-        _positional_args: _,
-        _named_args: _,
+        mut explicit_args,
     } = parse_macro_input!(input);
 
-    let _inline_args = extract_inline_args(fmt_s.value());
+    let inline_named_args = extract_inline_named_args(fmt_s.value());
+    explicit_args = explicit_args
+        .into_iter()
+        .filter_map(|arg| match arg {
+            x @ ExplicitArg::Positional(_) => Some(x),
+            ExplicitArg::Named { name, value } => {
+                if inline_named_args.contains(&name.to_string()) {
+                    unimplemented!()
+                } else {
+                    Some(ExplicitArg::Named { name, value })
+                }
+            }
+        })
+        .collect();
 
     quote! {
         $crate::AnsiFormatArgs {
             fmt_s: &'static str,
-            pub args_producer: F,
-            pub args: AnsiGenericStrings<'a, S>,
+            fmt_args_producer: F,
+            args: $crate::AnsiGenericStrings::from_iter([#(#explicit_args),*]),
         }
     }
     .into()

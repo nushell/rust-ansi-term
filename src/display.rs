@@ -721,33 +721,8 @@ pub struct AnsiFormatArgs<'a, S: 'a + ToOwned + ?Sized, F>
 where
     F: Fn(AnsiGenericString<'a, S>) -> fmt::Arguments,
 {
-    pub fmt_s: &'static str,
     pub args_producer: F,
     pub args: AnsiGenericStrings<'a, S>,
-}
-
-#[macro_export]
-macro_rules! ansi_generics {
-    ($fmt_s:literal, $($string:expr),*) => {
-        $crate::AnsiFormatArgs {
-            args: AnsiGenericStrings::from_iter([$($string),*]),
-            fmt_s: $fmt_s,
-            args_producer: |fmt_s: &'static str, strings: AnsiGenericStrings<'a, S>| -> fmt::Arguments<'a> {
-                let string_iter = strings.iter();
-                let ($($args),*) = (
-                    $(
-                        {
-                            #[cfg_attr(any())]
-                            $args
-
-                            string_iter.next().unwrap(),
-                        }
-                    ),*
-                );
-                format_args!($fmt_s, )
-            }
-        }
-    };
 }
 
 // ---- tests ----
