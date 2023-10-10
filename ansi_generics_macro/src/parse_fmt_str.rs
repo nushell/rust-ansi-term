@@ -4,7 +4,6 @@
 
 use ra_ap_rustc_index as rustc_index;
 use ra_ap_rustc_lexer as rustc_lexer;
-use rustc_lexer::unescape;
 pub use Alignment::*;
 pub use Count::*;
 pub use Piece::*;
@@ -38,25 +37,6 @@ pub struct InnerWidthMapping {
     pub before: usize,
     /// The transformed width in characters
     pub after: usize,
-}
-
-impl InnerWidthMapping {
-    pub fn new(position: usize, before: usize, after: usize) -> InnerWidthMapping {
-        InnerWidthMapping {
-            position,
-            before,
-            after,
-        }
-    }
-}
-
-/// The type of format string that we are parsing.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum ParseMode {
-    /// A normal format string as per `format_args!`.
-    Format,
-    /// An inline assembly template string for `asm!`.
-    InlineAsm,
 }
 
 #[derive(Copy, Clone)]
@@ -135,15 +115,6 @@ pub enum Position<'a> {
     Named(&'a str),
 }
 
-impl Position<'_> {
-    pub fn index(&self) -> Option<usize> {
-        match self {
-            IndexLocated(i, ..) | ImplicitlyLocated(i) => Some(*i),
-            _ => None,
-        }
-    }
-}
-
 /// Enum of alignments which are supported.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Alignment {
@@ -217,7 +188,6 @@ pub enum Suggestion {
 /// This is a recursive-descent parser for the sake of simplicity, and if
 /// necessary there's probably lots of room for improvement performance-wise.
 pub struct Parser<'a> {
-    mode: ParseMode,
     input: &'a str,
     cur: iter::Peekable<str::CharIndices<'a>>,
     /// Error messages accumulated during parsing
@@ -306,19 +276,13 @@ impl<'a> Iterator for Parser<'a> {
 
 impl<'a> Parser<'a> {
     /// Creates a new parser for the given format string
-    pub fn new(
-        s: &'a str,
-        style: Option<usize>,
-        append_newline: bool,
-        mode: ParseMode,
-    ) -> Parser<'a> {
+    pub fn new(s: &'a str, style: Option<usize>, append_newline: bool) -> Parser<'a> {
         // If no snippet is given (and we do not plan to give a snippet, the
         // following function always returns InputStringKind::LitString), so we
         // might as well eliminate the other branch entirely.
-        let (width_map, is_source_literail) = (Vec::new(), false);
+        let width_map = Vec::new();
 
         Parser {
-            mode,
             input: s,
             cur: s.char_indices().peekable(),
             errors: vec![],
@@ -530,10 +494,7 @@ impl<'a> Parser<'a> {
             .map_or(start, |(end, _)| self.to_span_index(end));
         let position_span = start.to(end);
 
-        let format = match self.mode {
-            ParseMode::Format => self.format(),
-            ParseMode::InlineAsm => self.inline_asm(),
-        };
+        let format = self.parse_format_spec();
 
         // Resolve position after parsing format spec.
         let pos = match pos {
@@ -611,7 +572,7 @@ impl<'a> Parser<'a> {
 
     /// Parses a format specifier at the current position, returning all of the
     /// relevant information in the `FormatSpec` struct.
-    fn format(&mut self) -> FormatSpec<'a> {
+    fn parse_format_spec(&mut self) -> FormatSpec<'a> {
         let mut spec = FormatSpec {
             fill: None,
             fill_span: None,
@@ -722,38 +683,6 @@ impl<'a> Parser<'a> {
                 spec.ty_span = Some(self.span(ty_span_start, ty_span_end));
             }
         }
-        spec
-    }
-
-    /// Parses an inline assembly template modifier at the current position, returning the modifier
-    /// in the `ty` field of the `FormatSpec` struct.
-    fn inline_asm(&mut self) -> FormatSpec<'a> {
-        let mut spec = FormatSpec {
-            fill: None,
-            fill_span: None,
-            align: Unknown,
-            sign: None,
-            alternate: false,
-            zero_pad: false,
-            debug_hex: None,
-            precision: Implied,
-            precision_span: None,
-            width: Implied,
-            width_span: None,
-            ty: &self.input[..0],
-            ty_span: None,
-        };
-        if !self.consume(':') {
-            return spec;
-        }
-
-        let ty_span_start = self.current_pos();
-        spec.ty = self.word();
-        if !spec.ty.is_empty() {
-            let ty_span_end = self.current_pos();
-            spec.ty_span = Some(self.span(ty_span_start, ty_span_end));
-        }
-
         spec
     }
 
@@ -905,18 +834,18 @@ impl<'a> Parser<'a> {
     }
 }
 
-fn unescape_string(string: &str) -> Option<string::String> {
-    let mut buf = string::String::new();
-    let mut ok = true;
-    unescape::unescape_literal(string, unescape::Mode::Str, &mut |_, unescaped_char| {
-        match unescaped_char {
-            Ok(c) => buf.push(c),
-            Err(_) => ok = false,
-        }
-    });
+// fn unescape_string(string: &str) -> Option<string::String> {
+//     let mut buf = string::String::new();
+//     let mut ok = true;
+//     unescape::unescape_literal(string, unescape::Mode::Str, &mut |_, unescaped_char| {
+//         match unescaped_char {
+//             Ok(c) => buf.push(c),
+//             Err(_) => ok = false,
+//         }
+//     });
 
-    ok.then_some(buf)
-}
+//     ok.then_some(buf)
+// }
 
 // Assert a reasonable size for `Piece`
 #[cfg(all(target_arch = "x86_64", target_pointer_width = "64"))]
@@ -929,7 +858,7 @@ mod tests {
 
     #[track_caller]
     fn same(fmt: &'static str, p: &[Piece<'static>]) {
-        let parser = Parser::new(fmt, None, false, ParseMode::Format);
+        let parser = Parser::new(fmt, None, false);
         assert_eq!(parser.collect::<Vec<Piece<'static>>>(), p);
     }
 
@@ -952,7 +881,7 @@ mod tests {
     }
 
     fn musterr(s: &str) {
-        let mut p = Parser::new(s, None, false, ParseMode::Format);
+        let mut p = Parser::new(s, None, false);
         p.next();
         assert!(!p.errors.is_empty());
     }

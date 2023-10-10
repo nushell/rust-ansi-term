@@ -60,7 +60,8 @@ impl Parse for FormatArgs {
 }
 
 fn extract_inline_args(fmt_s: String) -> Vec<String> {
-    Parser::new(&fmt_s, None, false, mode)
+    Parser::new(&fmt_s, None, false);
+    unimplemented!()
 }
 
 // Function like proc_macros have signature (TokenStream) -> TokenStream.
