@@ -3,7 +3,7 @@ use std::fmt;
 use std::fmt::Debug;
 use std::io;
 
-use crate::AnsiGenericStrings;
+use crate::{AnsiGenericStrings, Style};
 
 /// Helper to alias  over [`fmt::Result`], or [`io::Result`] depending on the
 /// error type used ([`fmt::Error`] or [`io::Error`]).
@@ -118,7 +118,7 @@ where
     fn write_str_to(&self, w: &mut W) -> WriteResult<W::Error>;
 }
 
-impl<'a, W: AnyWrite + ?Sized, S: ?Sized + ToOwned + AsRef<W::Buf>> StrLike<'a, W> for S {
+impl<'a, W: AnyWrite + ?Sized, S: 'a + ?Sized + ToOwned + AsRef<W::Buf>> StrLike<'a, W> for S {
     fn write_str_to(&self, w: &mut W) -> WriteResult<W::Error> {
         w.write_any_str(self.as_ref())
     }
@@ -129,7 +129,7 @@ impl<'a, W: AnyWrite + ?Sized, S: ?Sized + ToOwned + AsRef<W::Buf>> StrLike<'a, 
 /// * anything that implements [`AsRef<AnyWrite::Buf>`] (conveniently
 ///   stored in either reference or owned format within a [`Cow`]).
 /// * an [`AnsiGenericString`]
-pub enum Content<'a, S: ?Sized + ToOwned> {
+pub enum Content<'a, S: 'a + ?Sized + ToOwned> {
     /// Content is [`fmt::Arguments`].
     FmtArgs(fmt::Arguments<'a>),
     /// Content is a reference to something that implements [`ToOwned`], or the
@@ -138,7 +138,17 @@ pub enum Content<'a, S: ?Sized + ToOwned> {
     Ansi(AnsiGenericStrings<'a, S>),
 }
 
-impl<'a, S: ?Sized + ToOwned> ToString for Content<'a, S>
+impl<'a, S: 'a + ?Sized + ToOwned> Content<'a, S> {
+    pub fn with_context(self, context: Style) -> Self {
+        match self {
+            x @ Content::FmtArgs(_) => Self::Ansi(context.paint(x).into()),
+            x @ Content::StrLike(_) => Self::Ansi(context.paint(x).into()),
+            Content::Ansi(mut x) => Self::Ansi(x.rebase_on(context)),
+        }
+    }
+}
+
+impl<'a, S: 'a + ?Sized + ToOwned> ToString for Content<'a, S>
 where
     S: AsRef<str>,
 {
@@ -159,7 +169,7 @@ where
     }
 }
 
-impl<'a, S: ?Sized + ToOwned> Clone for Content<'a, S> {
+impl<'a, S: 'a + ?Sized + ToOwned> Clone for Content<'a, S> {
     fn clone(&self) -> Self {
         match self {
             Self::FmtArgs(x) => Self::FmtArgs(*x),
@@ -169,7 +179,7 @@ impl<'a, S: ?Sized + ToOwned> Clone for Content<'a, S> {
     }
 }
 
-impl<'a, S: ?Sized + ToOwned> Debug for Content<'a, S>
+impl<'a, S: 'a + ?Sized + ToOwned> Debug for Content<'a, S>
 where
     S: fmt::Debug,
 {
@@ -182,7 +192,7 @@ where
     }
 }
 
-impl<'a, S: ?Sized + ToOwned> Content<'a, S> {
+impl<'a, S: 'a + ?Sized + ToOwned> Content<'a, S> {
     /// Write content to the given writer.
     pub fn write_to<T: ?Sized + ToOwned, W: AnyWrite<Buf = T> + ?Sized>(
         &self,
@@ -200,7 +210,7 @@ impl<'a, S: ?Sized + ToOwned> Content<'a, S> {
     }
 }
 
-impl<'a, S: ?Sized + ToOwned, T: ?Sized + ToOwned> From<&'a T> for Content<'a, S>
+impl<'a, S: 'a + ?Sized + ToOwned, T: ?Sized + ToOwned> From<&'a T> for Content<'a, S>
 where
     T: AsRef<S>,
 {
@@ -209,9 +219,15 @@ where
     }
 }
 
-impl<'a, S: ?Sized + ToOwned> From<fmt::Arguments<'a>> for Content<'a, S> {
+impl<'a, S: 'a + ?Sized + ToOwned> From<fmt::Arguments<'a>> for Content<'a, S> {
     fn from(args: fmt::Arguments<'a>) -> Self {
         Content::FmtArgs(args)
+    }
+}
+
+impl<'a, S: 'a + ?Sized + ToOwned> From<AnsiGenericStrings<'a, S>> for Content<'a, S> {
+    fn from(strings: AnsiGenericStrings<'a, S>) -> Self {
+        Content::Ansi(strings)
     }
 }
 

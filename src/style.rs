@@ -52,6 +52,41 @@ impl Coloring {
     }
 }
 
+pub trait BasedOn {
+    fn based_on(self, base: Self) -> Self;
+}
+
+impl BasedOn for Option<Color> {
+    fn based_on(self, base: Self) -> Self {
+        match (self, base) {
+            (None, None) => None,
+            (None, Some(c)) => Some(c),
+            (Some(c), None) | (Some(c), Some(_)) => Some(c),
+        }
+    }
+}
+
+impl BasedOn for Coloring {
+    fn based_on(self, base: Self) -> Self {
+        Self {
+            foreground: self.foreground.based_on(base.foreground),
+            background: self.background.based_on(base.background),
+        }
+    }
+}
+
+impl BasedOn for FormatFlags {
+    fn based_on(self, base: Self) -> Self {
+        self | base
+    }
+}
+
+impl BasedOn for bool {
+    fn based_on(self, base: Self) -> Self {
+        self || base
+    }
+}
+
 /// A style is a collection of properties that can format a string
 /// using ANSI escape codes.
 ///
@@ -75,6 +110,16 @@ pub struct Style {
     pub formats: FormatFlags,
     /// Data regarding the foreground/background color applied by this style.
     pub coloring: Coloring,
+}
+
+impl BasedOn for Style {
+    fn based_on(self, base: Self) -> Self {
+        Style {
+            prefix_with_reset: self.prefix_with_reset.based_on(base.prefix_with_reset),
+            formats: self.formats.based_on(base.formats),
+            coloring: self.coloring.based_on(base.coloring),
+        }
+    }
 }
 
 impl PartialEq for Style {

@@ -1,11 +1,12 @@
 use crate::ansi::RESET;
 use crate::difference::StyleDelta;
-use crate::style::{Color, Style};
+use crate::style::{BasedOn, Color, Style};
 use crate::write::{AnyWrite, Content, StrLike, WriteResult};
 use crate::{fmt_write, write_any_fmt, write_any_str};
 use std::borrow::Cow;
 use std::fmt::{self, Debug};
 use std::io;
+use std::marker::PhantomData;
 
 /// Represents various features that require "OS Control" ANSI codes.
 pub enum OSControl<'a, S: 'a + ToOwned + ?Sized> {
@@ -125,6 +126,16 @@ impl<'a, S: 'a + ToOwned + ?Sized> From<fmt::Arguments<'a>> for AnsiGenericStrin
         AnsiGenericString {
             style: Style::default(),
             content: args.into(),
+            oscontrol: None,
+        }
+    }
+}
+
+impl<'a, S: 'a + ToOwned + ?Sized> From<AnsiGenericStrings<'a, S>> for AnsiGenericString<'a, S> {
+    fn from(strings: AnsiGenericStrings<'a, S>) -> Self {
+        AnsiGenericString {
+            style: Style::default(),
+            content: strings.into(),
             oscontrol: None,
         }
     }
@@ -257,6 +268,19 @@ pub struct AnsiGenericStrings<'a, S: 'a + ToOwned + ?Sized> {
     style_updates: Cow<'a, [StyleUpdate]>,
 }
 
+impl<'a, S: 'a + ToOwned + ?Sized> From<AnsiGenericString<'a, S>> for AnsiGenericStrings<'a, S> {
+    fn from(value: AnsiGenericString<'a, S>) -> Self {
+        let style = value.style;
+        Self {
+            strings: Cow::Owned(vec![value]),
+            style_updates: Cow::Owned(vec![StyleUpdate {
+                style_delta: StyleDelta::PrefixUsing(style),
+                begins_at: 0,
+            }]),
+        }
+    }
+}
+
 impl<'a, S: 'a + ToOwned + ?Sized> Clone for AnsiGenericStrings<'a, S> {
     fn clone(&self) -> Self {
         Self {
@@ -264,13 +288,6 @@ impl<'a, S: 'a + ToOwned + ?Sized> Clone for AnsiGenericStrings<'a, S> {
             strings: self.strings.clone(),
         }
     }
-}
-
-#[macro_export]
-macro_rules! ansi_generics {
-    ($fmt_s:literal, $($args:tt)*) => {
-        "hello world!"
-    };
 }
 
 /// We manually implement [`Debug`](fmt::Debug) so that it is specifically only
@@ -350,6 +367,24 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
         } else {
             Self::from_iter(new_strings)
         }
+    }
+
+    pub fn rebase_on(&mut self, base: Style) -> Self {
+        let mut result = self.clone();
+
+        for update in result.style_updates.to_mut() {
+            update.style_delta = match update.style_delta {
+                StyleDelta::PrefixUsing(style) => {
+                    StyleDelta::PrefixUsing(if style.prefix_with_reset {
+                        style.based_on(base)
+                    } else {
+                        style
+                    })
+                }
+                StyleDelta::Empty => StyleDelta::Empty,
+            };
+        }
+        result
     }
 
     #[inline]
@@ -538,7 +573,10 @@ impl Style {
         I: Into<Content<'a, S>>,
     {
         AnsiGenericString {
-            content: input.into(),
+            content: match input.into() {
+                x @ Content::Ansi(_) => x.with_context(self),
+                x => x,
+            },
             style: self,
             oscontrol: None,
         }
@@ -561,7 +599,10 @@ impl Color {
         I: Into<Content<'a, S>>,
     {
         AnsiGenericString {
-            content: input.into(),
+            content: match input.into() {
+                x @ Content::Ansi(_) => x.with_context(self.as_foreground()),
+                x => x,
+            },
             style: self.as_foreground(),
             oscontrol: None,
         }
@@ -672,6 +713,41 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
             w.write_any_str(RESET.as_ref())
         }
     }
+}
+
+// ---- fmt::Arguments like generic ----
+
+pub struct AnsiFormatArgs<'a, S: 'a + ToOwned + ?Sized, F>
+where
+    F: Fn(AnsiGenericString<'a, S>) -> fmt::Arguments,
+{
+    pub fmt_s: &'static str,
+    pub args_producer: F,
+    pub args: AnsiGenericStrings<'a, S>,
+}
+
+#[macro_export]
+macro_rules! ansi_generics {
+    ($fmt_s:literal, $($string:expr),*) => {
+        $crate::AnsiFormatArgs {
+            args: AnsiGenericStrings::from_iter([$($string),*]),
+            fmt_s: $fmt_s,
+            args_producer: |fmt_s: &'static str, strings: AnsiGenericStrings<'a, S>| -> fmt::Arguments<'a> {
+                let string_iter = strings.iter();
+                let ($($args),*) = (
+                    $(
+                        {
+                            #[cfg_attr(any())]
+                            $args
+
+                            string_iter.next().unwrap(),
+                        }
+                    ),*
+                );
+                format_args!($fmt_s, )
+            }
+        }
+    };
 }
 
 // ---- tests ----

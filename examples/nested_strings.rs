@@ -1,4 +1,4 @@
-use nu_ansi_term::{ansi_generics, Style};
+use nu_ansi_term::{Color, Style};
 
 fn main() {
     // However, notice that nested format_args occurrences don't quite behave as
@@ -7,7 +7,7 @@ fn main() {
     // `nested_strings` example of to see how one can do such a thing using `AnsiGenericStrings`
     println!(
         "{}",
-        Style::new().blink().paint(ansi_generics!(
+        Style::new().blink().paint(format_args!(
             "{}{}{}",
             "format ",
             Color::Blue.paint(format_args!(" args ")),
