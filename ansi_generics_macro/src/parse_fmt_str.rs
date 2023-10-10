@@ -188,8 +188,8 @@ pub enum Suggestion {
 /// This is a recursive-descent parser for the sake of simplicity, and if
 /// necessary there's probably lots of room for improvement performance-wise.
 pub struct Parser<'a> {
-    input: &'a str,
-    cur: iter::Peekable<str::CharIndices<'a>>,
+    pub input: &'a str,
+    pub cur: iter::Peekable<str::CharIndices<'a>>,
     /// Error messages accumulated during parsing
     pub errors: Vec<ParseError>,
     /// Current position of implicit positional argument pointer
@@ -197,13 +197,13 @@ pub struct Parser<'a> {
     /// Start and end byte offset of every successfully parsed argument
     pub arg_places: Vec<InnerSpan>,
     /// Characters whose length has been changed from their in-code representation
-    width_map: Vec<InnerWidthMapping>,
+    pub width_map: Vec<InnerWidthMapping>,
     /// Span of the last opening brace seen, used for error reporting
-    last_opening_brace: Option<InnerSpan>,
+    pub last_opening_brace: Option<InnerSpan>,
     /// Whether the source string is comes from `println!` as opposed to `format!` or `print!`
-    append_newline: bool,
+    pub append_newline: bool,
     /// Start position of the current line.
-    cur_line_start: usize,
+    pub cur_line_start: usize,
     /// Start and end byte offset of every line of the format string. Excludes
     /// newline characters and leading whitespace.
     pub line_spans: Vec<InnerSpan>,

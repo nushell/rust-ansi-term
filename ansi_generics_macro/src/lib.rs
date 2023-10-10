@@ -1,5 +1,5 @@
 mod parse_fmt_str;
-use parse_fmt_str::Parser;
+use parse_fmt_str::{Argument, Parser};
 use quote::quote;
 use syn::{
     ext::IdentExt,
@@ -60,8 +60,16 @@ impl Parse for FormatArgs {
 }
 
 fn extract_inline_args(fmt_s: String) -> Vec<String> {
-    Parser::new(&fmt_s, false);
-    unimplemented!()
+    Parser::new(&fmt_s, false)
+        .filter_map(|piece| match piece {
+            parse_fmt_str::Piece::String(_) => None,
+            parse_fmt_str::Piece::NextArgument(arg) => match arg.position {
+                parse_fmt_str::Position::ImplicitlyLocated(_)
+                | parse_fmt_str::Position::IndexLocated(_) => None,
+                parse_fmt_str::Position::Named(named) => Some(named.to_string()),
+            },
+        })
+        .collect()
 }
 
 // Function like proc_macros have signature (TokenStream) -> TokenStream.
