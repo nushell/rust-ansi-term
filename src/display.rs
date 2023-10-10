@@ -6,7 +6,6 @@ use crate::{fmt_write, write_any_fmt, write_any_str};
 use std::borrow::Cow;
 use std::fmt::{self, Debug};
 use std::io;
-use std::slice::Iter;
 
 /// Represents various features that require "OS Control" ANSI codes.
 pub enum OSControl<'a, S: 'a + ToOwned + ?Sized> {
@@ -258,18 +257,6 @@ pub struct AnsiGenericStrings<'a, S: 'a + ToOwned + ?Sized> {
     style_updates: Cow<'a, [StyleUpdate]>,
 }
 
-pub struct GenericStringsIter<'b, 'a, S: 'a + ToOwned + ?Sized, I: Iterator<Item = > {
-    iter: I<'b, AnsiGenericString<'a, S>>,
-}
-
-impl<'b, 'a, S: 'a + ToOwned + ?Sized> Iterator for GenericStringsIter<'b, 'a, S> {
-    type Item = AnsiGenericString<'a, S>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next()
-    }
-}
-
 impl<'a, S: 'a + ToOwned + ?Sized> Clone for AnsiGenericStrings<'a, S> {
     fn clone(&self) -> Self {
         Self {
@@ -309,25 +296,90 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
         }
     }
 
+    /// Iterate over the underlying generic strings.
+    pub fn iter(&self) -> impl Iterator<Item = &'_ AnsiGenericString<'a, S>> {
+        self.strings.iter()
+    }
+
+    /// Update specific generic strings.
+    ///
+    /// Depending on where the updates are made, not all style deltas will be
+    /// re-computed.
+    pub fn update_strings(
+        &mut self,
+        updates: impl IntoIterator<Item = (usize, AnsiGenericString<'a, S>)>,
+    ) -> Self {
+        let mut updates: Vec<(usize, AnsiGenericString<'a, S>)> = updates.into_iter().collect();
+
+        if updates.is_empty() {
+            return self.clone();
+        }
+
+        // Now we know updates are not empty.
+        updates.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+        let min_changed_ix = updates.first().unwrap().0;
+
+        let mut new_strings = self.strings.to_vec();
+        let original_len = new_strings.len();
+
+        for (u_ix, u) in updates.into_iter() {
+            if u_ix < original_len {
+                new_strings[u_ix] = u;
+            } else {
+                new_strings.push(u);
+            }
+        }
+
+        if min_changed_ix < original_len {
+            let mut new_style_updates = Vec::with_capacity(new_strings.len());
+            new_style_updates.extend(&self.style_updates[0..min_changed_ix]);
+            let mut new_style_updates = Cow::Owned(new_style_updates);
+
+            for (ix, style) in new_strings[min_changed_ix..]
+                .iter()
+                .map(|s| s.style)
+                .enumerate()
+            {
+                Self::push_style_into(&mut new_style_updates, style, ix + min_changed_ix)
+            }
+
+            Self {
+                strings: Cow::Owned(new_strings),
+                style_updates: new_style_updates,
+            }
+        } else {
+            Self::from_iter(new_strings)
+        }
+    }
+
     #[inline]
-    pub fn push(&mut self, s: &AnsiGenericString<'a, S>) {
+    pub fn push(&mut self, s: AnsiGenericString<'a, S>) {
         self.strings.to_mut().push(s.clone());
         self.push_style(*s.style(), self.strings.len() - 1);
     }
 
-    fn push_style(&mut self, next: Style, begins_at: usize) {
-        let command = self
-            .style_updates
+    #[inline]
+    fn push_style_into(
+        existing_style_updates: &mut Cow<'a, [StyleUpdate]>,
+        next: Style,
+        begins_at: usize,
+    ) {
+        let command = existing_style_updates
             .last()
             .copied()
             .unwrap_or_default()
             .style_delta
             .delta_next(next);
 
-        self.style_updates.to_mut().push(StyleUpdate {
+        existing_style_updates.to_mut().push(StyleUpdate {
             begins_at,
             style_delta: command,
         });
+    }
+
+    #[inline]
+    fn push_style(&mut self, next: Style, begins_at: usize) {
+        Self::push_style_into(&mut self.style_updates, next, begins_at)
     }
 
     fn write_iter(&self) -> WriteIter<'_, 'a, S> {
@@ -432,12 +484,10 @@ impl<'b, 'a, S: 'a + ToOwned + ?Sized> Iterator for WriteIter<'b, 'a, S> {
     }
 }
 
-impl<'b, 'a, S: 'a + ToOwned + ?Sized> FromIterator<&'b AnsiGenericString<'a, S>>
+impl<'a, S: 'a + ToOwned + ?Sized> FromIterator<AnsiGenericString<'a, S>>
     for AnsiGenericStrings<'a, S>
 {
-    fn from_iter<Iterable: IntoIterator<Item = &'b AnsiGenericString<'a, S>>>(
-        iter: Iterable,
-    ) -> Self {
+    fn from_iter<Iterable: IntoIterator<Item = AnsiGenericString<'a, S>>>(iter: Iterable) -> Self {
         let iter = iter.into_iter();
         let (lower, upper) = iter.size_hint();
         let count = upper.unwrap_or(lower);
@@ -455,7 +505,7 @@ pub type AnsiStrings<'a> = AnsiGenericStrings<'a, str>;
 
 /// A function to construct an `AnsiStrings` instance.
 #[allow(non_snake_case)]
-pub fn AnsiStrings<'a>(arg: &[AnsiString<'a>]) -> AnsiStrings<'a> {
+pub fn AnsiStrings<'a>(arg: impl IntoIterator<Item = AnsiString<'a>>) -> AnsiStrings<'a> {
     AnsiGenericStrings::from_iter(arg)
 }
 
@@ -465,7 +515,9 @@ pub type AnsiByteStrings<'a> = AnsiGenericStrings<'a, [u8]>;
 
 /// A function to construct an `AnsiByteStrings` instance.
 #[allow(non_snake_case)]
-pub fn AnsiByteStrings<'a>(arg: &'a [AnsiByteString<'a>]) -> AnsiByteStrings<'a> {
+pub fn AnsiByteStrings<'a>(
+    arg: impl IntoIterator<Item = AnsiByteString<'a>>,
+) -> AnsiByteStrings<'a> {
     AnsiGenericStrings::from_iter(arg)
 }
 
@@ -635,7 +687,7 @@ mod tests {
     fn no_control_codes_for_plain() {
         let one = Style::default().paint("one");
         let two = Style::default().paint("two");
-        let output = AnsiStrings(&[one, two]).to_string();
+        let output = AnsiStrings([one, two]).to_string();
         assert_eq!(output, "onetwo");
     }
 
@@ -643,7 +695,7 @@ mod tests {
     fn title_solo() {
         let unstyled = AnsiGenericString::title("hello");
 
-        let joined = AnsiStrings(&[unstyled.clone()]).to_string();
+        let joined = AnsiStrings([unstyled.clone()]).to_string();
         let expected = "\x1B]2;hello\x1B\\";
         assert_required!(joined, expected);
     }
@@ -655,7 +707,7 @@ mod tests {
 
         // does not introduce spurious SGR codes (reset or otherwise) adjacent
         // to plain strings
-        let joined = AnsiStrings(&[unstyled.clone(), after.clone()]).to_string();
+        let joined = AnsiStrings([unstyled.clone(), after.clone()]).to_string();
         let expected = format!("{}{}", unstyled, after);
         assert_required!(joined, expected);
     }
@@ -667,7 +719,7 @@ mod tests {
 
         // does not introduce spurious SGR codes (reset or otherwise) adjacent
         // to plain strings
-        let joined = AnsiStrings(&[before.clone(), unstyled.clone()]).to_string();
+        let joined = AnsiStrings([before.clone(), unstyled.clone()]).to_string();
         let expected = format!("{}{}", before.clone(), unstyled);
         assert_required!(joined, expected);
     }
@@ -680,7 +732,7 @@ mod tests {
 
         // does not introduce spurious SGR codes (reset or otherwise) adjacent
         // to plain strings
-        let joined = AnsiStrings(&[before.clone(), unstyled.clone(), after.clone()]).to_string();
+        let joined = AnsiStrings([before.clone(), unstyled.clone(), after.clone()]).to_string();
         let expected = format!("{}{}{}", before, unstyled, after);
         assert_required!(joined, expected);
     }
@@ -691,7 +743,7 @@ mod tests {
         let after_g = Green.paint(" After is Green.");
 
         // Check that RESET does not follow unstyled
-        let joined = AnsiStrings(&[unstyled.clone(), after_g.clone()]).to_string();
+        let joined = AnsiStrings([unstyled.clone(), after_g.clone()]).to_string();
         let expected = format!("{}{}", unstyled, {
             format_args!(
                 "{}{}{}",
@@ -709,7 +761,7 @@ mod tests {
         let before_g = Green.paint("Before is Green.");
 
         // Check that reset precedes unstyled, but does not follow it
-        let joined = AnsiStrings(&[before_g.clone(), unstyled.clone()]).to_string();
+        let joined = AnsiStrings([before_g.clone(), unstyled.clone()]).to_string();
         let expected = format!(
             "{}{}",
             format_args!(
@@ -729,8 +781,7 @@ mod tests {
         let before_g = Green.paint("Before is Green.");
         let after_g = Green.paint(" After is Green.");
 
-        let joined =
-            AnsiStrings(&[before_g.clone(), unstyled.clone(), after_g.clone()]).to_string();
+        let joined = AnsiStrings([before_g.clone(), unstyled.clone(), after_g.clone()]).to_string();
         let expected = format!(
             "{}{}{}",
             format_args!(
@@ -769,7 +820,7 @@ mod tests {
             .hyperlink("https://example.com");
         dbg!("link: {:?}", &link);
         // Assemble with link by itself
-        let joined = AnsiStrings(&[link.clone()]).to_string();
+        let joined = AnsiStrings([link.clone()]).to_string();
         #[cfg(feature = "gnu_legacy")]
         assert_eq!(joined, format!("\x1B[04;34m\x1B]8;;https://example.com\x1B\\Link to example.com.\x1B]8;;\x1B\\\x1B[0m"));
         #[cfg(not(feature = "gnu_legacy"))]
@@ -785,7 +836,7 @@ mod tests {
         dbg!("link: {:?}", &link);
         let after = Green.paint(" After link.");
         // Assemble with link first
-        let joined = AnsiStrings(&[link.clone(), after.clone()]).to_string();
+        let joined = AnsiStrings([link.clone(), after.clone()]).to_string();
         #[cfg(feature = "gnu_legacy")]
         assert_eq!(joined, format!("\x1B[04;34m\x1B]8;;https://example.com\x1B\\Link to example.com.\x1B]8;;\x1B\\\x1B[0m\x1B[32m After link.\x1B[0m"));
         #[cfg(not(feature = "gnu_legacy"))]
@@ -801,7 +852,7 @@ mod tests {
             .hyperlink("https://example.com");
         dbg!("link: {:?}", &link);
         // Assemble with link at the end
-        let joined = AnsiStrings(&[before.clone(), link.clone()]).to_string();
+        let joined = AnsiStrings([before.clone(), link.clone()]).to_string();
         #[cfg(feature = "gnu_legacy")]
         assert_eq!(joined, format!("\x1B[32mBefore link. \x1B[04;34m\x1B]8;;https://example.com\x1B\\Link to example.com.\x1B]8;;\x1B\\\x1B[0m"));
         #[cfg(not(feature = "gnu_legacy"))]
@@ -819,7 +870,7 @@ mod tests {
         let after = Green.paint(" After link.");
         dbg!("link: {:?}", &link);
         // Assemble with link in the middle
-        let joined = AnsiStrings(&[before.clone(), link.clone(), after.clone()]).to_string();
+        let joined = AnsiStrings([before.clone(), link.clone(), after.clone()]).to_string();
         #[cfg(feature = "gnu_legacy")]
         assert_eq!(joined, format!("\x1B[32mBefore link. \x1B[04;34m\x1B]8;;https://example.com\x1B\\Link to example.com.\x1B]8;;\x1B\\\x1B[0m\x1B[32m After link.\x1B[0m"));
         #[cfg(not(feature = "gnu_legacy"))]
