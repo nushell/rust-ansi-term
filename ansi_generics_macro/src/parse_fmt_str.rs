@@ -50,18 +50,6 @@ impl InnerWidthMapping {
     }
 }
 
-/// Whether the input string is a literal. If yes, it contains the inner width mappings.
-#[derive(Clone, PartialEq, Eq)]
-enum InputStringKind {
-    // Actual data that must be parsed
-    LitString,
-    // I think this is a string that contains another string inside it.
-    // For example: "\"hello world!\"" would be a meta string
-    MetaString {
-        width_mappings: Vec<InnerWidthMapping>,
-    },
-}
-
 /// The type of format string that we are parsing.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ParseMode {
@@ -246,10 +234,6 @@ pub struct Parser<'a> {
     last_opening_brace: Option<InnerSpan>,
     /// Whether the source string is comes from `println!` as opposed to `format!` or `print!`
     append_newline: bool,
-    /// Whether this formatting string was written directly in the source. This controls whether we
-    /// can use spans to refer into it and give better error messages.
-    /// N.B: This does _not_ control whether implicit argument captures can be used.
-    pub is_source_literal: bool,
     /// Start position of the current line.
     cur_line_start: usize,
     /// Start and end byte offset of every line of the format string. Excludes
@@ -276,16 +260,13 @@ impl<'a> Iterator for Parser<'a> {
                     } else {
                         let arg = self.argument(lbrace_end);
                         if let Some(rbrace_pos) = self.consume_closing_brace(&arg) {
-                            if self.is_source_literal {
-                                let lbrace_byte_pos = self.to_span_index(pos);
-                                let rbrace_byte_pos = self.to_span_index(rbrace_pos);
+                            let lbrace_byte_pos = self.to_span_index(pos);
+                            let rbrace_byte_pos = self.to_span_index(rbrace_pos);
 
-                                let width = self.to_span_width(rbrace_pos);
+                            let width = self.to_span_width(rbrace_pos);
 
-                                self.arg_places.push(
-                                    lbrace_byte_pos.to(InnerOffset(rbrace_byte_pos.0 + width)),
-                                );
-                            }
+                            self.arg_places
+                                .push(lbrace_byte_pos.to(InnerOffset(rbrace_byte_pos.0 + width)));
                         } else if let Some(&(_, maybe)) = self.cur.peek() {
                             if maybe == '?' {
                                 self.suggest_format();
@@ -314,11 +295,9 @@ impl<'a> Iterator for Parser<'a> {
                 _ => Some(String(self.string(pos))),
             }
         } else {
-            if self.is_source_literal {
-                let span = self.span(self.cur_line_start, self.input.len());
-                if self.line_spans.last() != Some(&span) {
-                    self.line_spans.push(span);
-                }
+            let span = self.span(self.cur_line_start, self.input.len());
+            if self.line_spans.last() != Some(&span) {
+                self.line_spans.push(span);
             }
             None
         }
@@ -334,11 +313,10 @@ impl<'a> Parser<'a> {
         append_newline: bool,
         mode: ParseMode,
     ) -> Parser<'a> {
-        let input_string_kind = find_width_map_from_snippet(s, snippet, style);
-        let (width_map, is_source_literal) = match input_string_kind {
-            InputStringKind::MetaString { width_mappings } => (width_mappings, true),
-            InputStringKind::LitString => (Vec::new(), false),
-        };
+        // If no snippet is given (and we do not plan to give a snippet, the
+        // following function always returns InputStringKind::LitString), so we
+        // might as well eliminate the other branch entirely.
+        let (width_map, is_source_literail) = (Vec::new(), false);
 
         Parser {
             mode,
@@ -351,7 +329,6 @@ impl<'a> Parser<'a> {
             width_map,
             last_opening_brace: None,
             append_newline,
-            is_source_literal,
             cur_line_start: 0,
             line_spans: vec![],
         }
@@ -527,13 +504,13 @@ impl<'a> Parser<'a> {
                 '{' | '}' => {
                     return &self.input[start..pos];
                 }
-                '\n' if self.is_source_literal => {
+                '\n' => {
                     self.line_spans.push(self.span(self.cur_line_start, pos));
                     self.cur_line_start = pos + 1;
                     self.cur.next();
                 }
                 _ => {
-                    if self.is_source_literal && pos == self.cur_line_start && c.is_whitespace() {
+                    if pos == self.cur_line_start && c.is_whitespace() {
                         self.cur_line_start = pos + c.len_utf8();
                     }
                     self.cur.next();
@@ -927,131 +904,6 @@ impl<'a> Parser<'a> {
             }
         }
     }
-}
-
-/// Finds the indices of all characters that have been processed and differ between the actual
-/// written code (code snippet) and the `InternedString` that gets processed in the `Parser`
-/// in order to properly synthesise the intra-string `Span`s for error diagnostics.
-fn find_width_map_from_snippet(
-    input: &str,
-    snippet: Option<string::String>,
-    str_style: Option<usize>,
-) -> InputStringKind {
-    let snippet = match snippet {
-        Some(ref s) if s.starts_with('"') || s.starts_with("r\"") || s.starts_with("r#") => s,
-        _ => return InputStringKind::LitString,
-    };
-
-    if str_style.is_some() {
-        return InputStringKind::MetaString {
-            width_mappings: Vec::new(),
-        };
-    }
-
-    // Strip quotes.
-    let snippet = &snippet[1..snippet.len() - 1];
-
-    // Macros like `println` add a newline at the end. That technically doesn't make them "literals" anymore, but it's fine
-    // since we will never need to point our spans there, so we lie about it here by ignoring it.
-    // Since there might actually be newlines in the source code, we need to normalize away all trailing newlines.
-    // If we only trimmed it off the input, `format!("\n")` would cause a mismatch as here we they actually match up.
-    // Alternatively, we could just count the trailing newlines and only trim one from the input if they don't match up.
-    let input_no_nl = input.trim_end_matches('\n');
-    let Some(unescaped) = unescape_string(snippet) else {
-        return InputStringKind::LitString;
-    };
-
-    let unescaped_no_nl = unescaped.trim_end_matches('\n');
-
-    if unescaped_no_nl != input_no_nl {
-        // The source string that we're pointing at isn't our input, so spans pointing at it will be incorrect.
-        // This can for example happen with proc macros that respan generated literals.
-        return InputStringKind::LitString;
-    }
-
-    let mut s = snippet.char_indices();
-    let mut width_mappings = vec![];
-    while let Some((pos, c)) = s.next() {
-        match (c, s.clone().next()) {
-            // skip whitespace and empty lines ending in '\\'
-            ('\\', Some((_, '\n'))) => {
-                let _ = s.next();
-                let mut width = 2;
-
-                while let Some((_, c)) = s.clone().next() {
-                    if matches!(c, ' ' | '\n' | '\t') {
-                        width += 1;
-                        let _ = s.next();
-                    } else {
-                        break;
-                    }
-                }
-
-                width_mappings.push(InnerWidthMapping::new(pos, width, 0));
-            }
-            ('\\', Some((_, 'n' | 't' | 'r' | '0' | '\\' | '\'' | '\"'))) => {
-                width_mappings.push(InnerWidthMapping::new(pos, 2, 1));
-                let _ = s.next();
-            }
-            ('\\', Some((_, 'x'))) => {
-                // consume `\xAB` literal
-                s.nth(2);
-                width_mappings.push(InnerWidthMapping::new(pos, 4, 1));
-            }
-            ('\\', Some((_, 'u'))) => {
-                let mut width = 2;
-                let _ = s.next();
-
-                if let Some((_, next_c)) = s.next() {
-                    if next_c == '{' {
-                        // consume up to 6 hexanumeric chars
-                        let digits_len = s
-                            .clone()
-                            .take(6)
-                            .take_while(|(_, c)| c.is_digit(16))
-                            .count();
-
-                        let len_utf8 = s
-                            .as_str()
-                            .get(..digits_len)
-                            .and_then(|digits| u32::from_str_radix(digits, 16).ok())
-                            .and_then(char::from_u32)
-                            .map_or(1, char::len_utf8);
-
-                        // Skip the digits, for chars that encode to more than 1 utf-8 byte
-                        // exclude as many digits as it is greater than 1 byte
-                        //
-                        // So for a 3 byte character, exclude 2 digits
-                        let required_skips = digits_len.saturating_sub(len_utf8.saturating_sub(1));
-
-                        // skip '{' and '}' also
-                        width += required_skips + 2;
-
-                        s.nth(digits_len);
-                    } else if next_c.is_digit(16) {
-                        width += 1;
-
-                        // We suggest adding `{` and `}` when appropriate, accept it here as if
-                        // it were correct
-                        let mut i = 0; // consume up to 6 hexanumeric chars
-                        while let (Some((_, c)), _) = (s.next(), i < 6) {
-                            if c.is_digit(16) {
-                                width += 1;
-                            } else {
-                                break;
-                            }
-                            i += 1;
-                        }
-                    }
-                }
-
-                width_mappings.push(InnerWidthMapping::new(pos, width, 1));
-            }
-            _ => {}
-        }
-    }
-
-    InputStringKind::MetaString { width_mappings }
 }
 
 fn unescape_string(string: &str) -> Option<string::String> {
