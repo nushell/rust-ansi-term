@@ -265,8 +265,8 @@ impl FormatArgs {
             .enumerate()
             .filter_map(|(ix, arg)| match arg {
                 Arg::Explicit(MatchedExplicit { name, .. }) => match name {
-                    ExplicitName::Generated(_) => quote!(inputs[#ix]),
-                    ExplicitName::Given(_) => quote!(#name=inputs[#ix]),
+                    ExplicitName::Generated(_) => quote!(render_inputs[#ix]),
+                    ExplicitName::Given(_) => quote!(#name=render_inputs[#ix]),
                 }
                 .into(),
                 Arg::ImplicitNamed(_) => None,
@@ -308,20 +308,70 @@ pub fn ansi_generics(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
     let explicit_arg_tokens: Vec<TokenStream2> = format_args.explicit_arg_tokens().collect();
     let explicit_exprs: Vec<Expr> = format_args.explicit_exprs().collect();
     let inline_names: Vec<&Ident> = format_args.inline_names().collect();
+    let random_struct_name = format_ident!("GenericFmtArgImplementor{}", random::<usize>());
 
     quote! {
         {
-            #[inline]
-            fn ___create_ansi_format_args___<'a, S: 'a + ?Sized + ToOwned, F: Fn([AnsiGenericString<'a, S>; #n_inputs]) -> std::fmt::Arguments<'a>>(#(#all_names: AnsiGenericString<'a, S>),*) -> AnsiFormatArgs<'a, S, F, #n_inputs> {
-                AnsiFormatArgs {
-                    args_producer: |inputs: [AnsiGenericString<'a, S>; #n_inputs]| -> std::fmt::Arguments<'a> {
-                        format_args!(#fmt_s, #(#explicit_arg_tokens),*)
-                    },
-                    producer_inputs: [#(#all_names),*],
+            extern crate self as nu_ansi_term;
+            use nu_ansi_term::{FmtArgRenderer, AnsiGenericString};
+            use std::fmt;
+
+            #[derive(Default, Debug)]
+            struct #random_struct_name<'a, S: 'a + ?Sized + ToOwned> {
+                render_inputs: Vec<AnsiGenericString<'a, S>>,
+                cached_render_output: Option<Cow<'a, fmt::Arguments<'a>>>,
+                re_render_required: bool,
+            }
+
+            fn render_inputs_ref(&self) -> &[AnsiGenericString<'a, S>];
+            fn render_inputs_mut(&mut self) -> &mut [AnsiGenericString<'a, S>];
+            fn cached_render_output(&self) -> Option<Cow<'a, fmt::Arguments<'a>>>;
+            fn uncache_render_output(&mut self);
+            fn render(&self) -> Cow<'a, fmt::Arguments<'a>>;
+
+            impl trait FmtArgRenderer<'a, S: 'a + ToOwned + ?Sized> for #random_struct_name<'a, S>
+            {
+                fn render_inputs_ref(&self) -> &[AnsiGenericString<'a, S>] {
+                    &self.render_inputs
+                }
+
+                fn render_inputs_mut(&mut self) -> &mut [AnsiGenericString<'a, S>] {
+                    &mut self.render_inputs
+                }
+
+                fn cached_render_output(&self) -> Option<&fmt::Arguments<'a, S>> {
+                    self.cached_render_output.as_ref()
+                }
+
+                fn uncache_render_output(&mut self) {
+                    self.cached_render_output.take();
+                }
+
+
+                fn render(&mut self) -> Cow<'a, fmt::Arguments<'a>> {
+                    if let Some(arg) =  self.cached_render_output() {
+                        arg
+                    } else {
+                        let render_inputs = self.render_inputs_ref();
+                        self.cached_render_output.replace(Cow::Owned(format_args!(#fmt_s, #(#explicit_arg_tokens),*)));
+                        self.cached_render_output.clone()
+                    }
                 }
             }
 
-            ___create_ansi_format_args___(#(#explicit_exprs),* #(#inline_names),*)
+            impl Clone for #random_struct_name {
+                fn clone(&self) -> Self {
+                    Self {
+                        render_inputs: render_inputs.clone(),
+                        ..Default::default(),
+                    }
+                }
+            }
+
+            #random_struct_name {
+                render_inputs: vec![#(#explicit_exprs),* #(#inline_names.clone()),*],
+                ..Default::default()
+            }
         }
     }
     .into()

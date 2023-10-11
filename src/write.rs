@@ -3,7 +3,7 @@ use std::fmt;
 use std::fmt::Debug;
 use std::io;
 
-use crate::{AnsiGenericStrings, Style};
+use crate::{AnsiFmtArgs, AnsiGenericStrings, FmtArgRenderer, Style};
 
 /// Helper to alias  over [`fmt::Result`], or [`io::Result`] depending on the
 /// error type used ([`fmt::Error`] or [`io::Error`]).
@@ -135,15 +135,20 @@ pub enum Content<'a, S: 'a + ?Sized + ToOwned> {
     /// Content is a reference to something that implements [`ToOwned`], or the
     /// [`ToOwned::Owned`] variant specified by that implementation.
     StrLike(Cow<'a, S>),
-    Ansi(AnsiGenericStrings<'a, S>),
+    GenericStrings(AnsiGenericStrings<'a, S>),
+    GenericFmtArg(Box<&'a dyn FmtArgRenderer<'a, S>>),
 }
 
 impl<'a, S: 'a + ?Sized + ToOwned> Content<'a, S> {
     pub fn with_context(self, context: Style) -> Self {
         match self {
-            x @ Content::FmtArgs(_) => Self::Ansi(context.paint(x).into()),
-            x @ Content::StrLike(_) => Self::Ansi(context.paint(x).into()),
-            Content::Ansi(mut x) => Self::Ansi(x.rebase_on(context)),
+            x @ Content::FmtArgs(_) => Self::GenericStrings(context.paint(x).into()),
+            x @ Content::StrLike(_) => Self::GenericStrings(context.paint(x).into()),
+            Content::GenericStrings(mut x) => Self::GenericStrings(x.rebase_on(context)),
+            Content::GenericFmtArg(mut x) => {
+                x.rebase_on(context);
+                Self::GenericFmtArg(x)
+            }
         }
     }
 }
@@ -160,9 +165,14 @@ where
                 x.as_ref().write_str_to(fmt_write!(&mut s)).unwrap();
                 s
             }
-            Content::Ansi(x) => {
+            Content::GenericStrings(x) => {
                 let mut s = String::new();
                 x.write_to_any(fmt_write!(&mut s)).unwrap();
+                s
+            }
+            Content::GenericFmtArg(x) => {
+                let mut s = String::new();
+                write_any_fmt!(fmt_write!(&mut s), "{}", x.render());
                 s
             }
         }
@@ -174,7 +184,8 @@ impl<'a, S: 'a + ?Sized + ToOwned> Clone for Content<'a, S> {
         match self {
             Self::FmtArgs(x) => Self::FmtArgs(*x),
             Self::StrLike(x) => Self::StrLike(x.clone()),
-            Self::Ansi(x) => Self::Ansi(x.clone()),
+            Self::GenericStrings(x) => Self::GenericStrings(x.clone()),
+            Self::GenericFmtArg(x) => todo!(),
         }
     }
 }
@@ -187,7 +198,7 @@ where
         match self {
             Self::FmtArgs(x) => f.debug_tuple("FmtArgs").field(x).finish(),
             Self::StrLike(x) => f.debug_tuple("StrLike").field(&x.as_ref()).finish(),
-            Self::Ansi(x) => f.debug_tuple("Ansi").field(&x).finish(),
+            Self::GenericStrings(x) => f.debug_tuple("Ansi").field(&x).finish(),
         }
     }
 }
@@ -205,7 +216,7 @@ impl<'a, S: 'a + ?Sized + ToOwned> Content<'a, S> {
         match self {
             Content::FmtArgs(args) => w.write_any_fmt(*args),
             Content::StrLike(s) => <S as StrLike<'a, W>>::write_str_to(s, w),
-            Content::Ansi(x) => x.write_to_any(w),
+            Content::GenericStrings(x) => x.write_to_any(w),
         }
     }
 }
@@ -227,12 +238,24 @@ impl<'a, S: 'a + ?Sized + ToOwned> From<fmt::Arguments<'a>> for Content<'a, S> {
 
 impl<'a, S: 'a + ?Sized + ToOwned> From<AnsiGenericStrings<'a, S>> for Content<'a, S> {
     fn from(strings: AnsiGenericStrings<'a, S>) -> Self {
-        Content::Ansi(strings)
+        Content::GenericStrings(strings)
+    }
+}
+
+impl<'a, S: 'a + ?Sized + ToOwned> From<AnsiFmtArgs<'a, S>> for Content<'a, S> {
+    fn from(strings: AnsiGenericStrings<'a, S>) -> Self {
+        Content::GenericStrings(strings)
     }
 }
 
 impl<'a> From<String> for Content<'a, str> {
     fn from(s: String) -> Self {
+        Content::StrLike(Cow::Owned(s))
+    }
+}
+
+impl<'a> From<Vec<u8>> for Content<'a, [u8]> {
+    fn from(s: Vec<u8>) -> Self {
         Content::StrLike(Cow::Owned(s))
     }
 }

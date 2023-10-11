@@ -1,4 +1,4 @@
-use nu_ansi_term::{ansi_generics, AnsiFormatArgs, AnsiGenericString, Color, Style};
+use nu_ansi_term::{ansi_generics, Color, Style};
 
 fn main() {
     // However, notice that nested format_args occurrences don't quite behave as

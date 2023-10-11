@@ -53,11 +53,11 @@ impl Coloring {
 }
 
 pub trait BasedOn {
-    fn based_on(self, base: Self) -> Self;
+    fn rebase_on(self, base: Self) -> Self;
 }
 
 impl BasedOn for Option<Color> {
-    fn based_on(self, base: Self) -> Self {
+    fn rebase_on(self, base: Self) -> Self {
         match (self, base) {
             (None, None) => None,
             (None, Some(c)) => Some(c),
@@ -67,22 +67,22 @@ impl BasedOn for Option<Color> {
 }
 
 impl BasedOn for Coloring {
-    fn based_on(self, base: Self) -> Self {
+    fn rebase_on(self, base: Self) -> Self {
         Self {
-            foreground: self.foreground.based_on(base.foreground),
-            background: self.background.based_on(base.background),
+            foreground: self.foreground.rebase_on(base.foreground),
+            background: self.background.rebase_on(base.background),
         }
     }
 }
 
 impl BasedOn for FormatFlags {
-    fn based_on(self, base: Self) -> Self {
+    fn rebase_on(self, base: Self) -> Self {
         self | base
     }
 }
 
 impl BasedOn for bool {
-    fn based_on(self, base: Self) -> Self {
+    fn rebase_on(self, base: Self) -> Self {
         self || base
     }
 }
@@ -113,11 +113,11 @@ pub struct Style {
 }
 
 impl BasedOn for Style {
-    fn based_on(self, base: Self) -> Self {
+    fn rebase_on(self, base: Self) -> Self {
         Style {
-            prefix_with_reset: self.prefix_with_reset.based_on(base.prefix_with_reset),
-            formats: self.formats.based_on(base.formats),
-            coloring: self.coloring.based_on(base.coloring),
+            prefix_with_reset: self.prefix_with_reset.rebase_on(base.prefix_with_reset),
+            formats: self.formats.rebase_on(base.formats),
+            coloring: self.coloring.rebase_on(base.coloring),
         }
     }
 }

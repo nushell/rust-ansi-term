@@ -6,7 +6,6 @@ use crate::{fmt_write, write_any_fmt, write_any_str};
 use std::borrow::Cow;
 use std::fmt::{self, Debug};
 use std::io;
-use std::marker::PhantomData;
 
 /// Represents various features that require "OS Control" ANSI codes.
 pub enum OSControl<'a, S: 'a + ToOwned + ?Sized> {
@@ -369,14 +368,12 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
         }
     }
 
-    pub fn rebase_on(&mut self, base: Style) -> Self {
-        let mut result = self.clone();
-
-        for update in result.style_updates.to_mut() {
+    pub fn rebase_on(mut self, base: Style) -> Self {
+        for update in self.style_updates.to_mut() {
             update.style_delta = match update.style_delta {
                 StyleDelta::PrefixUsing(style) => {
                     StyleDelta::PrefixUsing(if style.prefix_with_reset {
-                        style.based_on(base)
+                        style.rebase_on(base)
                     } else {
                         style
                     })
@@ -384,7 +381,7 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
                 StyleDelta::Empty => StyleDelta::Empty,
             };
         }
-        result
+        self
     }
 
     #[inline]
@@ -574,7 +571,7 @@ impl Style {
     {
         AnsiGenericString {
             content: match input.into() {
-                x @ Content::Ansi(_) => x.with_context(self),
+                x @ Content::GenericStrings(_) => x.with_context(self),
                 x => x,
             },
             style: self,
@@ -600,7 +597,7 @@ impl Color {
     {
         AnsiGenericString {
             content: match input.into() {
-                x @ Content::Ansi(_) => x.with_context(self.as_foreground()),
+                x @ Content::GenericStrings(_) => x.with_context(self.as_foreground()),
                 x => x,
             },
             style: self.as_foreground(),
@@ -627,6 +624,10 @@ impl<'a> AnsiByteString<'a> {
 }
 
 impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericString<'a, S> {
+    pub fn rebase_on(mut self, base: Style) -> Self {
+        self.style = self.style.rebase_on(base);
+        self
+    }
     /// Write only the part of the generic string which lies within its styling
     /// prefix and suffix: its `content` and `oscontrol`.
     pub fn write_inner<W: AnyWrite + ?Sized>(
@@ -717,12 +718,20 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
 
 // ---- fmt::Arguments like generic ----
 
-pub struct AnsiFormatArgs<'a, S: 'a + ToOwned + ?Sized, F, const N: usize>
-where
-    F: Fn([AnsiGenericString<'a, S>; N]) -> fmt::Arguments,
-{
-    pub args_producer: F,
-    pub producer_inputs: [AnsiGenericString<'a, S>; N],
+pub struct AnsiGenericFmtArgs<'a, S: 'a + ToOwned + ?Sized> {}
+
+pub trait FmtArgRenderer<'a, S: 'a + ToOwned + ?Sized> {
+    fn render_inputs_ref(&self) -> &[AnsiGenericString<'a, S>];
+    fn render_inputs_mut(&mut self) -> &mut [AnsiGenericString<'a, S>];
+    fn cached_render_output(&self) -> Option<Cow<'a, fmt::Arguments<'a>>>;
+    fn uncache_render_output(&mut self);
+    fn render(&self) -> Cow<'a, fmt::Arguments<'a>>;
+    fn rebase_on(&mut self, base: Style) {
+        for string in self.render_inputs_mut() {
+            *string = string.rebase_on(base);
+        }
+        self.uncache_render_output();
+    }
 }
 
 // ---- tests ----
