@@ -14,3 +14,4 @@ regex = "1.10.0"
 syn = { version = "2", features = ["full"]}
 ra-ap-rustc_index = "0.14.0"
 ra-ap-rustc_lexer = "0.14.0"
+rand = "0.8.5"

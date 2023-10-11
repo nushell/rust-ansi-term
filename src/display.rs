@@ -717,9 +717,9 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
 
 // ---- fmt::Arguments like generic ----
 
-pub struct AnsiFormatArgs<'a, S: 'a + ToOwned + ?Sized, F>
+pub struct AnsiFormatArgs<'a, S: 'a + ToOwned + ?Sized, F, const N: usize>
 where
-    F: Fn(AnsiGenericString<'a, S>) -> fmt::Arguments,
+    F: Fn(AnsiGenericStrings<'a, S>) -> fmt::Arguments,
 {
     pub args_producer: F,
     pub args: AnsiGenericStrings<'a, S>,

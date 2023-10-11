@@ -110,7 +110,7 @@ pub enum Position<'a> {
     /// The argument is implied to be located at an index
     ImplicitlyLocated(usize),
     /// The argument is located at a specific index given in the format,
-    IndexLocated(usize),
+    IndexGiven(usize),
     /// The argument has a name.
     Named(&'a str),
 }
@@ -513,7 +513,7 @@ impl<'a> Parser<'a> {
     /// consuming a macro argument, `None` if it's the case.
     fn position(&mut self) -> Option<Position<'a>> {
         if let Some(i) = self.integer() {
-            Some(IndexLocated(i))
+            Some(IndexGiven(i))
         } else {
             match self.cur.peek() {
                 Some(&(lo, c)) if rustc_lexer::is_id_start(c) => {
@@ -942,7 +942,7 @@ mod tests {
         same(
             "{3}",
             &[NextArgument(Box::new(Argument {
-                position: IndexLocated(3),
+                position: IndexGiven(3),
                 position_span: InnerSpan { start: 2, end: 3 },
                 format: fmtdflt(),
             }))],
@@ -953,7 +953,7 @@ mod tests {
         same(
             "{3:}",
             &[NextArgument(Box::new(Argument {
-                position: IndexLocated(3),
+                position: IndexGiven(3),
                 position_span: InnerSpan { start: 2, end: 3 },
                 format: fmtdflt(),
             }))],
@@ -975,7 +975,7 @@ mod tests {
         same(
             "{3:x}",
             &[NextArgument(Box::new(Argument {
-                position: IndexLocated(3),
+                position: IndexGiven(3),
                 position_span: InnerSpan { start: 2, end: 3 },
                 format: FormatSpec {
                     fill: None,
@@ -1000,7 +1000,7 @@ mod tests {
         same(
             "{3:>}",
             &[NextArgument(Box::new(Argument {
-                position: IndexLocated(3),
+                position: IndexGiven(3),
                 position_span: InnerSpan { start: 2, end: 3 },
                 format: FormatSpec {
                     fill: None,
@@ -1022,7 +1022,7 @@ mod tests {
         same(
             "{3:0<}",
             &[NextArgument(Box::new(Argument {
-                position: IndexLocated(3),
+                position: IndexGiven(3),
                 position_span: InnerSpan { start: 2, end: 3 },
                 format: FormatSpec {
                     fill: Some('0'),
@@ -1044,7 +1044,7 @@ mod tests {
         same(
             "{3:*<abcd}",
             &[NextArgument(Box::new(Argument {
-                position: IndexLocated(3),
+                position: IndexGiven(3),
                 position_span: InnerSpan { start: 2, end: 3 },
                 format: FormatSpec {
                     fill: Some('*'),
@@ -1113,7 +1113,7 @@ mod tests {
         same(
             "{1:0$.10x}",
             &[NextArgument(Box::new(Argument {
-                position: IndexLocated(1),
+                position: IndexGiven(1),
                 position_span: InnerSpan { start: 2, end: 3 },
                 format: FormatSpec {
                     fill: None,
@@ -1275,7 +1275,7 @@ mod tests {
             &[
                 String("abcd "),
                 NextArgument(Box::new(Argument {
-                    position: IndexLocated(3),
+                    position: IndexGiven(3),
                     position_span: InnerSpan { start: 7, end: 8 },
                     format: FormatSpec {
                         fill: None,
