@@ -1,12 +1,14 @@
 mod parse_fmt_str;
-use parse_fmt_str::{Argument, Parser, Piece, Position};
+use std::cmp::Ordering;
+
+use parse_fmt_str::{Argument, Parser, Position};
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{quote, ToTokens};
 use rand::prelude::*;
 use syn::{
     ext::IdentExt,
     parse::{Parse, ParseStream},
-    parse_macro_input, parse_quote, Expr, Ident, LitStr, Result as SynResult, Token,
+    parse_macro_input, Expr, Ident, LitStr, Result as SynResult, Token,
 };
 
 // pub struct AnsiFormatArgs<'a, S: 'a + ToOwned + ?Sized, F>
@@ -36,9 +38,9 @@ impl Parse for InputExplicit {
             input.parse::<Token![=]>()?;
             let value: Expr = input.parse()?;
             Ok(InputExplicit::Named {
+                str_name: name.to_string(),
                 name,
                 expr: value,
-                str_name: name.to_string(),
             })
         } else {
             Ok(InputExplicit::Positional {
@@ -64,7 +66,6 @@ impl Parse for InputArgs {
     fn parse(input: ParseStream) -> SynResult<Self> {
         let fmt_s: LitStr = input.parse()?;
         let mut explicit_args = Vec::new();
-        let mut arg_ix = 0;
 
         while !input.is_empty() {
             input.parse::<Token![,]>()?;
@@ -84,35 +85,35 @@ impl Parse for InputArgs {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum ExplicitName {
     Generated(Ident),
     Given(Ident),
-}
-
-impl From<&ExplicitName> for &Ident {
-    fn from(explicit_name: &ExplicitName) -> Self {
-        match explicit_name {
-            ExplicitName::Generated(id) | ExplicitName::Given(id) => id,
-        }
-    }
 }
 
 impl ExplicitName {
     fn new_random() -> Self {
         ExplicitName::Generated({
             let r: u64 = random();
-            parse_quote!(format!("x{}", r))
+            let gen_name = format!("x{}", r);
+            Ident::new(&gen_name, Span::call_site())
         })
+    }
+
+    fn id(&self) -> &Ident {
+        match self {
+            ExplicitName::Generated(id) | ExplicitName::Given(id) => id,
+        }
     }
 }
 
 impl ToTokens for ExplicitName {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        let id: &Ident = self.into();
-        id.to_tokens(tokens);
+        self.id().to_tokens(tokens)
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct MatchedExplicit {
     name: ExplicitName,
     expr: Expr,
@@ -148,8 +149,8 @@ impl MatchedExplicit {
     ) -> MatchResult {
         match argument.position {
             Position::ImplicitlyLocated(ix) | Position::IndexGiven(ix) => explicits
-                .get(ix)
-                .map(|d| match d.explicit {
+                .get_mut(ix)
+                .map(|d: &mut DiscoveredExplicit| match &mut d.explicit {
                     InputExplicit::Positional { expr } => {
                         if !d.matched {
                             d.matched = true;
@@ -169,8 +170,8 @@ impl MatchedExplicit {
             Position::Named(this) => explicits
                 .iter()
                 .enumerate()
-                .find_map(|(ix, d)| match d.explicit {
-                    InputExplicit::Positional { expr } => panic!("Expected a named argument."),
+                .find_map(|(ix, d)| match &d.explicit {
+                    InputExplicit::Positional { .. } => panic!("Expected a named argument."),
                     InputExplicit::Named {
                         name,
                         expr,
@@ -193,8 +194,13 @@ impl MatchedExplicit {
                 ))),
         }
     }
+
+    fn id(&self) -> &Ident {
+        self.name.id()
+    }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum Arg {
     Explicit(MatchedExplicit),
     ImplicitNamed(Ident),
@@ -208,51 +214,61 @@ impl Arg {
             MatchResult::AlreadyMatched => None,
         }
     }
+
+    fn filter_implicit(&self) -> Option<&Ident> {
+        match self {
+            Arg::Explicit(_) => None,
+            Arg::ImplicitNamed(id) => Some(id),
+        }
+    }
+
+    fn filter_explicit(&self) -> Option<&MatchedExplicit> {
+        match self {
+            Arg::Explicit(explicit) => explicit.into(),
+            _ => None,
+        }
+    }
 }
 
 struct FormatArgs {
     args: Vec<Arg>,
-    explicit_arg_tokens: Vec<TokenStream2>,
 }
 
 impl FormatArgs {
-    fn new(args: Vec<Arg>) -> Self {
-        let explicit_arg_tokens = args
-            .iter()
-            .filter_map(|x| match x {
-                Arg::Explicit(MatchedExplicit {
-                    name,
-                    expr,
-                    position,
-                }) => match name {
-                    ExplicitName::Generated(_) => quote! {
-                        #expr
-                    }
-                    .into(),
-                    ExplicitName::Given(name) => quote! {
-                        #name=#expr
-                    }
-                    .into(),
-                },
-                _ => None,
-            })
-            .collect();
-
-        FormatArgs {
-            args,
-            explicit_arg_tokens,
-        }
+    fn new(mut args: Vec<Arg>) -> Self {
+        args.sort_by(|a, b| match (a, b) {
+            (Arg::Explicit(x), Arg::Explicit(y)) => x.position.cmp(&y.position),
+            (Arg::Explicit(_), Arg::ImplicitNamed(_)) => Ordering::Less,
+            (Arg::ImplicitNamed(_), Arg::Explicit(_)) => Ordering::Greater,
+            (Arg::ImplicitNamed(_), Arg::ImplicitNamed(_)) => Ordering::Equal,
+        });
+        FormatArgs { args }
     }
 
     fn all_names(&self) -> impl Iterator<Item = &Ident> {
         self.args.iter().map(|arg| match arg {
-            Arg::Explicit(MatchedExplicit { name, .. }) => name.into(),
+            Arg::Explicit(x) => x.id(),
             Arg::ImplicitNamed(name) => name,
         })
     }
 
-    fn explicit_arg_tokens(&self) -> &[TokenStream2] {
-        &self.explicit_arg_tokens
+    fn inline_names(&self) -> impl Iterator<Item = &Ident> {
+        self.args.iter().filter_map(Arg::filter_implicit)
+    }
+
+    fn explicit_args(&self) -> impl Iterator<Item = &MatchedExplicit> {
+        self.args.iter().filter_map(Arg::filter_explicit)
+    }
+
+    fn explicit_producer_args(&self) -> impl Iterator<Item = TokenStream2> + '_ {
+        self.explicit_args().map(|explicit| match &explicit.name {
+            ExplicitName::Generated(generated) => quote!( #generated ),
+            ExplicitName::Given(given) => quote!( #given=#given ),
+        })
+    }
+
+    fn explicit_exprs(&self) -> impl Iterator<Item = Expr> + '_ {
+        self.explicit_args().map(|explicit| explicit.expr.clone())
     }
 }
 
@@ -281,23 +297,18 @@ pub fn ansi_generics(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
     } = parse_macro_input!(input);
 
     let format_args = extract_inline_named_args(explicit_args, fmt_s.value());
-
-    // Remove any inline named args that are specified explicitly, e.g.:
-    // format!("hello {kitty}!", kitty="Gamsiz");
-    explicit_args.iter().for_each(|arg| match arg {
-        InputExplicit::Positional(_) => {}
-        InputExplicit::Named { name, .. } => {
-            if let Some(position) = inline_named_args.iter().position(|x| x == name) {
-                inline_named_args.remove(position);
-            }
-        }
-    });
+    let arg_names = format_args.all_names();
+    let producer_args = format_args.explicit_producer_args();
+    let explicit_exprs: Vec<Expr> = format_args.explicit_exprs().collect();
+    let inline_names = format_args.inline_names();
 
     quote! {
         let ansi_arg_strings = $crate::AnsiGenericStrings::from_iter([])
         $crate::AnsiFormatArgs {
-            fmt_args_producer: |#(#explicit_arg_names)|,
-            args: $crate::AnsiGenericStrings::from_iter([#(#explicit_args),* #(#inline_named_args),*]),
+            fmt_args_producer: |#(#arg_names: AnsiGenericString<'a, S>),*| -> std::fmt::Arguments<'a> {
+                format_args!(#fmt_s, #(#producer_args),*)
+            },
+            args: $crate::AnsiGenericStrings::from_iter([#(#explicit_exprs),* #(#inline_names),*]),
         }
     }
     .into()
