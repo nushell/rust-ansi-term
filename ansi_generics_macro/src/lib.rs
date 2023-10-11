@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 
 use parse_fmt_str::{Argument, Parser, Position};
 use proc_macro2::{Span, TokenStream as TokenStream2};
-use quote::{quote, ToTokens};
+use quote::{format_ident, quote, ToTokens};
 use rand::prelude::*;
 use syn::{
     ext::IdentExt,
@@ -95,8 +95,7 @@ impl ExplicitName {
     fn new_random() -> Self {
         ExplicitName::Generated({
             let r: u64 = random();
-            let gen_name = format!("x{}", r);
-            Ident::new(&gen_name, Span::call_site())
+            format_ident!("x{}", r)
         })
     }
 
@@ -260,11 +259,18 @@ impl FormatArgs {
         self.args.iter().filter_map(Arg::filter_explicit)
     }
 
-    fn explicit_producer_args(&self) -> impl Iterator<Item = TokenStream2> + '_ {
-        self.explicit_args().map(|explicit| match &explicit.name {
-            ExplicitName::Generated(generated) => quote!( #generated ),
-            ExplicitName::Given(given) => quote!( #given=#given ),
-        })
+    fn explicit_arg_tokens(&self) -> impl Iterator<Item = TokenStream2> + '_ {
+        self.args
+            .iter()
+            .enumerate()
+            .filter_map(|(ix, arg)| match arg {
+                Arg::Explicit(MatchedExplicit { name, .. }) => match name {
+                    ExplicitName::Generated(_) => quote!(inputs[#ix]),
+                    ExplicitName::Given(_) => quote!(#name=inputs[#ix]),
+                }
+                .into(),
+                Arg::ImplicitNamed(_) => None,
+            })
     }
 
     fn explicit_exprs(&self) -> impl Iterator<Item = Expr> + '_ {
@@ -297,18 +303,25 @@ pub fn ansi_generics(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
     } = parse_macro_input!(input);
 
     let format_args = extract_inline_named_args(explicit_args, fmt_s.value());
-    let arg_names = format_args.all_names();
-    let producer_args = format_args.explicit_producer_args();
+    let all_names: Vec<&Ident> = format_args.all_names().collect();
+    let n_inputs = all_names.len();
+    let explicit_arg_tokens: Vec<TokenStream2> = format_args.explicit_arg_tokens().collect();
     let explicit_exprs: Vec<Expr> = format_args.explicit_exprs().collect();
-    let inline_names = format_args.inline_names();
+    let inline_names: Vec<&Ident> = format_args.inline_names().collect();
 
     quote! {
-        let ansi_arg_strings = $crate::AnsiGenericStrings::from_iter([])
-        $crate::AnsiFormatArgs {
-            fmt_args_producer: |#(#arg_names: AnsiGenericString<'a, S>),*| -> std::fmt::Arguments<'a> {
-                format_args!(#fmt_s, #(#producer_args),*)
-            },
-            args: $crate::AnsiGenericStrings::from_iter([#(#explicit_exprs),* #(#inline_names),*]),
+        {
+            #[inline]
+            fn ___create_ansi_format_args___<'a, S: 'a + ?Sized + ToOwned, F: Fn([AnsiGenericString<'a, S>; #n_inputs]) -> std::fmt::Arguments<'a>>(#(#all_names: AnsiGenericString<'a, S>),*) -> AnsiFormatArgs<'a, S, F, #n_inputs> {
+                AnsiFormatArgs {
+                    args_producer: |inputs: [AnsiGenericString<'a, S>; #n_inputs]| -> std::fmt::Arguments<'a> {
+                        format_args!(#fmt_s, #(#explicit_arg_tokens),*)
+                    },
+                    producer_inputs: [#(#all_names),*],
+                }
+            }
+
+            ___create_ansi_format_args___(#(#explicit_exprs),* #(#inline_names),*)
         }
     }
     .into()

@@ -719,10 +719,10 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
 
 pub struct AnsiFormatArgs<'a, S: 'a + ToOwned + ?Sized, F, const N: usize>
 where
-    F: Fn(AnsiGenericStrings<'a, S>) -> fmt::Arguments,
+    F: Fn([AnsiGenericString<'a, S>; N]) -> fmt::Arguments,
 {
     pub args_producer: F,
-    pub args: AnsiGenericStrings<'a, S>,
+    pub producer_inputs: [AnsiGenericString<'a, S>; N],
 }
 
 // ---- tests ----

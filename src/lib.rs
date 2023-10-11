@@ -243,7 +243,6 @@ doc_comment::doctest!("../README.md");
 /// [`AnsiGenericString`](crate::display::AnsiGenericString) into a sequence of
 /// relevant ANSI escape codes.
 pub mod ansi;
-mod ansi_args;
 pub use ansi::{Infix, Prefix, Suffix};
 
 mod style;
@@ -273,3 +272,5 @@ pub use gradient::*;
 /// Helpers for specifying RGB colors.
 mod rgb;
 pub use rgb::*;
+
+pub use ansi_generics_macro::ansi_generics;
