@@ -1,4 +1,4 @@
-use nu_ansi_term::{ansi_format, Color, Style};
+use nu_ansi_term::{Color, Style};
 
 fn main() {
     let yes = Color::Yellow.as_foreground().bold().paint("yes!");
@@ -12,15 +12,5 @@ fn main() {
         Style::new().italic().underline().paint("hello"),
         Color::Cyan.paint("world!"),
         format_args!("{yes} it's {exclamation}")
-    );
-
-    println!(
-        "{}",
-        Style::new().blink().paint(ansi_format!(
-            "{}{}{}",
-            "format ",
-            Color::Blue.paint(format_args!(" args ")),
-            Style::new().bold().paint(format_args!(" can be styled!"))
-        ))
     );
 }

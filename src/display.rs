@@ -575,10 +575,6 @@ impl Style {
         AnsiGenericString {
             content: match input.into() {
                 x @ Content::GenericStrings(_) => x.with_context(self),
-                Content::GenericFmtArg(mut x) => {
-                    x.rebase_on(self);
-                    Content::GenericFmtArg(x)
-                }
                 x => x,
             },
             style: self,
@@ -712,48 +708,6 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
         } else {
             w.write_any_str(RESET.as_ref())
         }
-    }
-}
-
-// ---- fmt::Arguments like generic ----
-
-/// Output of the [`ansi_format`] macro. It is not meant for external use, but
-/// must be exposed regardless.
-///
-/// TODO: might be better to just produce an `AnsiGenericStrings` as the output
-/// of [`ansi_format`], rather than a trait object.
-pub trait FmtRenderer<'a, S: 'a + ToOwned + ?Sized>
-where
-    Self: 'a + fmt::Debug,
-{
-    /// Get a reference to the ANSI generic strings used to render the output string.
-    fn render_inputs_ref(&self) -> &[AnsiGenericString<'a, S>];
-    /// Get a mutable reference to the ANSI generic strings used to render the
-    /// output string.
-    fn render_inputs_mut(&mut self) -> &mut [AnsiGenericString<'a, S>];
-    /// Produce the output string.
-    ///
-    /// TODO: string caching. Possibly even skipping production of the String
-    /// and instead passing around the raw `[fmt::Arguments]` instance, if
-    /// lifteimes can be figured out.
-    fn render(&self) -> String;
-    /// Clone this renderer.
-    fn clone_renderer(&self) -> Box<dyn FmtRenderer<'a, S>>;
-    /// Rebase the styles of the component ANSI generic strings of this renderer
-    /// on the given `base`.
-    fn rebase_on(&mut self, base: Style) {
-        for string in self.render_inputs_mut() {
-            *string = string.clone().rebase_on(base);
-        }
-    }
-}
-
-impl<'a, S: 'a + ToOwned + ?Sized> fmt::Display for dyn FmtRenderer<'a, S>
-where
-    Self: fmt::Debug,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.render())
     }
 }
 
