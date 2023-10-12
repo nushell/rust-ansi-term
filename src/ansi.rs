@@ -291,7 +291,7 @@ impl Style {
     /// assert_eq!("\x1b[32m",
     ///            style.infix(Green.bold()).to_string());
     ///
-    /// let style = Green.fg();
+    /// let style = Green.normal();
     /// assert_eq!("\x1b[1m",
     ///            style.infix(Green.bold()).to_string());
     ///
@@ -328,7 +328,7 @@ impl Style {
     /// assert_eq!("\x1b[0m",
     ///            style.suffix().to_string());
     ///
-    /// let style = Green.fg().bold();
+    /// let style = Green.normal().bold();
     /// assert_eq!("\x1b[0m",
     ///            style.suffix().to_string());
     ///
@@ -356,7 +356,7 @@ impl Color {
     ///            Green.prefix().to_string());
     /// ```
     pub fn prefix(self) -> Prefix {
-        Prefix(self.fg())
+        Prefix(self.normal())
     }
 
     /// The infix bytes between this color and `next` color. These are the bytes
@@ -374,7 +374,7 @@ impl Color {
     ///            Red.infix(Yellow).to_string());
     /// ```
     pub fn infix(self, next: Color) -> Infix {
-        Infix(self.fg(), next.fg())
+        Infix(self.normal(), next.normal())
     }
 
     /// The suffix for this color as a `Style`. These are the bytes that
@@ -391,7 +391,7 @@ impl Color {
     ///            Purple.suffix().to_string());
     /// ```
     pub fn suffix(self) -> Suffix {
-        Suffix(self.fg())
+        Suffix(self.normal())
     }
 }
 
@@ -465,17 +465,17 @@ mod test {
     create_content_eq_tests!(
         [plain: Style::default(), "text/plain", "text/plain"]
         [red: Red, "hi", "\x1B[31mhi\x1B[0m"]
-        [black: Black.fg(), "hi", "\x1B[30mhi\x1B[0m"]
+        [black: Black.normal(), "hi", "\x1B[30mhi\x1B[0m"]
         [yellow: Yellow.bold(), "hi", "\x1B[1;33mhi\x1B[0m"]
-        [yellow_bold_2: Yellow.fg().bold(), "hi", "\x1B[1;33mhi\x1B[0m"]
+        [yellow_bold_2: Yellow.normal().bold(), "hi", "\x1B[1;33mhi\x1B[0m"]
         [blue_underline: Blue.underline(), "hi", "\x1B[4;34mhi\x1B[0m"]
         [green_bold_ul: Green.bold().underline(), "hi", "\x1B[1;4;32mhi\x1B[0m"]
         [green_bold_ul_2: Green.underline().bold(), "hi", "\x1B[1;4;32mhi\x1B[0m"]
         [purple_on_white: Purple.on(White), "hi", "\x1B[47;35mhi\x1B[0m"]
-        [purple_on_white_2: Purple.fg().bg(White), "hi", "\x1B[47;35mhi\x1B[0m"]
+        [purple_on_white_2: Purple.normal().bg(White), "hi", "\x1B[47;35mhi\x1B[0m"]
         [yellow_on_blue: Style::new().bg(Blue).fg(Yellow), "hi", "\x1B[44;33mhi\x1B[0m"]
         [magenta_on_white: Magenta.on(White), "hi", "\x1B[47;35mhi\x1B[0m"]
-        [magenta_on_white_2: Magenta.fg().bg(White), "hi", "\x1B[47;35mhi\x1B[0m"]
+        [magenta_on_white_2: Magenta.normal().bg(White), "hi", "\x1B[47;35mhi\x1B[0m"]
         [yellow_on_blue_2: Cyan.on(Blue).fg(Yellow), "hi", "\x1B[44;33mhi\x1B[0m"]
         [yellow_on_blue_reset: Cyan.on(Blue).reset_before_style().fg(Yellow), "hi", "\x1B[0m\x1B[44;33mhi\x1B[0m"]
         [yellow_on_blue_reset_2: Cyan.on(Blue).fg(Yellow).reset_before_style(), "hi", "\x1B[0m\x1B[44;33mhi\x1B[0m"]
@@ -503,9 +503,9 @@ mod test {
         [stricken: Style::new().strikethrough(), "hi", "\x1B[9mhi\x1B[0m"]
         [lr_on_lr: LightRed.on(LightRed), "hi", "\x1B[101;91mhi\x1B[0m"]
         @str_cmp [reset_format: Style::new().dimmed().infix(Style::new()).to_string(), "\x1B[0m"]
-        @str_cmp [reset_then_style: White.dimmed().infix(White.fg()).to_string(), "\x1B[0m\x1B[37m"]
-        @str_cmp [color_then_format: White.fg().infix(White.bold()).to_string(), "\x1B[1m"]
-        @str_cmp [color_change: White.fg().infix(Blue.fg()).to_string(), "\x1B[34m"]
+        @str_cmp [reset_then_style: White.dimmed().infix(White.normal()).to_string(), "\x1B[0m\x1B[37m"]
+        @str_cmp [color_then_format: White.normal().infix(White.bold()).to_string(), "\x1B[1m"]
+        @str_cmp [color_change: White.normal().infix(Blue.normal()).to_string(), "\x1B[34m"]
         @str_cmp [no_change: Blue.bold().infix(Blue.bold()).to_string(), ""]
     );
 }

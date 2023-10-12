@@ -279,7 +279,7 @@ pub struct FgColor(Color);
 
 impl DebugStylePaint for FgColor {
     fn into_style(self) -> Style {
-        self.0.fg()
+        self.0.normal()
     }
 }
 
@@ -294,7 +294,7 @@ impl DebugStylePaint for BgColor {
 
 impl DebugStylePaint for Color {
     fn into_style(self) -> Style {
-        self.fg()
+        self.normal()
     }
 }
 
@@ -447,7 +447,7 @@ mod test {
         [bold: bold]
         [italic: italic]
         [both: bold, italic]
-        [red: Red.fg(), "Style { foreground(Red) }"]
+        [red: Red.normal(), "Style { foreground(Red) }"]
         [redblue: Red.on(Rgb(3, 2, 4)), "Style { foreground(Red), background(Rgb(3, 2, 4)) }"]
         [everything: Red.on(Blue).blink().bold().dimmed().hidden().italic().reverse().strikethrough().underline(), "Style { blink, bold, dimmed, hidden, italic, reverse, strikethrough, underline, foreground(Red), background(Blue) }"]
     );

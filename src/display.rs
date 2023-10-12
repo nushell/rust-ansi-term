@@ -598,7 +598,7 @@ impl Color {
     where
         I: Into<Content<'a, S>>,
     {
-        self.fg().paint(input)
+        self.normal().paint(input)
     }
 }
 

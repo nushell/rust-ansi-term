@@ -477,7 +477,7 @@ macro_rules! color_methods {
                 #[doc = r#"println!("{}", style.paint("hi"));"# ]
                 #[doc = r"```"]
                 pub fn [< $flag:lower >](self) -> Style {
-                    self.fg().[< $flag:lower >]()
+                    self.normal().[< $flag:lower >]()
                 }
             )*
         }
@@ -492,10 +492,10 @@ impl Color {
     /// ```
     /// use nu_ansi_term::Color;
     ///
-    /// let style = Color::Rgb(31, 31, 31).fg();
+    /// let style = Color::Rgb(31, 31, 31).normal();
     /// println!("{}", style.paint("eyyyy"));
     /// ```
-    pub fn fg(self) -> Style {
+    pub fn normal(self) -> Style {
         Style::new().fg(self)
     }
 
@@ -553,12 +553,12 @@ impl From<Color> for Style {
     /// ```
     /// use nu_ansi_term::{Style, Color};
     /// let green_foreground = Style::default().fg(Color::Green);
-    /// assert_eq!(green_foreground, Color::Green.fg());
+    /// assert_eq!(green_foreground, Color::Green.normal());
     /// assert_eq!(green_foreground, Color::Green.into());
     /// assert_eq!(green_foreground, Style::from(Color::Green));
     /// ```
     fn from(color: Color) -> Style {
-        color.fg()
+        color.normal()
     }
 }
 

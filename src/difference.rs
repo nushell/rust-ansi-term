@@ -196,12 +196,12 @@ mod test {
         };
     }
 
-    test!(nothing:    Green.fg(); Green.fg()  => Empty);
-    test!(bold:  Green.fg(); Green.bold()    => PrefixUsing(style().bold()));
-    test!(unbold:  Green.bold();   Green.fg()  => PrefixUsing(style().fg(Green).reset_before_style()));
+    test!(nothing:    Green.normal(); Green.normal()  => Empty);
+    test!(bold:  Green.normal(); Green.bold()    => PrefixUsing(style().bold()));
+    test!(unbold:  Green.bold();   Green.normal()  => PrefixUsing(style().fg(Green).reset_before_style()));
     test!(nothing2:   Green.bold();   Green.bold()    => Empty);
 
-    test!(color_change: Red.fg(); Blue.fg() => PrefixUsing(style().fg(Blue)));
+    test!(color_change: Red.normal(); Blue.normal() => PrefixUsing(style().fg(Blue)));
 
     test!(addition_of_blink:          style(); style().blink()          => PrefixUsing(style().blink()));
     test!(addition_of_dimmed:         style(); style().dimmed()         => PrefixUsing(style().dimmed()));
