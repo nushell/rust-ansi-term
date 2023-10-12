@@ -3,7 +3,7 @@ use std::fmt;
 use std::fmt::Debug;
 use std::io;
 
-use crate::{AnsiGenericStrings, FmtArgRenderer, Style};
+use crate::{AnsiGenericStrings, FmtRenderer, Style};
 
 /// Helper to alias  over [`fmt::Result`], or [`io::Result`] depending on the
 /// error type used ([`fmt::Error`] or [`io::Error`]).
@@ -135,11 +135,17 @@ pub enum Content<'a, S: 'a + ?Sized + ToOwned> {
     /// Content is a reference to something that implements [`ToOwned`], or the
     /// [`ToOwned::Owned`] variant specified by that implementation.
     StrLike(Cow<'a, S>),
+    /// Content is an [`AnsiGenericStrings`] sequence. Note that any singular
+    /// [`AnsyGenericString`](crate::AnsiGenericString) can be converted into an
+    /// [`AnsiGenericStrings`] using the appropriate [`From`] impl.
     GenericStrings(AnsiGenericStrings<'a, S>),
-    GenericFmtArg(Box<dyn FmtArgRenderer<'a, S>>),
+    /// Content is produced by the [`ansi_format`] macro.
+    GenericFmtArg(Box<dyn FmtRenderer<'a, S>>),
 }
 
 impl<'a, S: 'a + ?Sized + ToOwned> Content<'a, S> {
+    /// If there are nested ANSI strings in this `Content`, they are rebased on
+    /// this style (see various `rebase_on` methods).
     pub fn with_context(self, context: Style) -> Self {
         match self {
             x @ Content::FmtArgs(_) => Self::GenericStrings(context.paint(x).into()),
@@ -244,8 +250,8 @@ impl<'a, S: 'a + ?Sized + ToOwned> From<AnsiGenericStrings<'a, S>> for Content<'
     }
 }
 
-impl<'a, S: 'a + ?Sized + ToOwned> From<Box<dyn FmtArgRenderer<'a, S>>> for Content<'a, S> {
-    fn from(renderer: Box<dyn FmtArgRenderer<'a, S>>) -> Self {
+impl<'a, S: 'a + ?Sized + ToOwned> From<Box<dyn FmtRenderer<'a, S>>> for Content<'a, S> {
+    fn from(renderer: Box<dyn FmtRenderer<'a, S>>) -> Self {
         Content::GenericFmtArg(renderer)
     }
 }

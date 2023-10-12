@@ -368,6 +368,8 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
         }
     }
 
+    /// Rebase a nested string onto a parent's style. This is effectively an
+    /// "OR" operation.
     pub fn rebase_on(mut self, base: Style) -> Self {
         for update in self.style_updates.to_mut() {
             update.style_delta = match update.style_delta {
@@ -384,6 +386,7 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
         self
     }
 
+    /// Push given generic string into this [`AnsiGenericStrings`] instance.
     #[inline]
     pub fn push(&mut self, s: AnsiGenericString<'a, S>) {
         self.strings.to_mut().push(s.clone());
@@ -620,6 +623,8 @@ impl<'a> AnsiByteString<'a> {
 }
 
 impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericString<'a, S> {
+    /// Rebase this style on a `base` style (effective an "OR" operation).
+    /// Useful for ANSI strings nested inside other ANSI strings.
     pub fn rebase_on(mut self, base: Style) -> Self {
         self.style = self.style.rebase_on(base);
         self
@@ -712,14 +717,30 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
 
 // ---- fmt::Arguments like generic ----
 
-pub trait FmtArgRenderer<'a, S: 'a + ToOwned + ?Sized>
+/// Output of the [`ansi_format`] macro. It is not meant for external use, but
+/// must be exposed regardless.
+///
+/// TODO: might be better to just produce an `AnsiGenericStrings` as the output
+/// of [`ansi_format`], rather than a trait object.
+pub trait FmtRenderer<'a, S: 'a + ToOwned + ?Sized>
 where
     Self: 'a + fmt::Debug,
 {
+    /// Get a reference to the ANSI generic strings used to render the output string.
     fn render_inputs_ref(&self) -> &[AnsiGenericString<'a, S>];
+    /// Get a mutable reference to the ANSI generic strings used to render the
+    /// output string.
     fn render_inputs_mut(&mut self) -> &mut [AnsiGenericString<'a, S>];
+    /// Produce the output string.
+    ///
+    /// TODO: string caching. Possibly even skipping production of the String
+    /// and instead passing around the raw `[fmt::Arguments]` instance, if
+    /// lifteimes can be figured out.
     fn render(&self) -> String;
-    fn clone_renderer(&self) -> Box<dyn FmtArgRenderer<'a, S>>;
+    /// Clone this renderer.
+    fn clone_renderer(&self) -> Box<dyn FmtRenderer<'a, S>>;
+    /// Rebase the styles of the component ANSI generic strings of this renderer
+    /// on the given `base`.
     fn rebase_on(&mut self, base: Style) {
         for string in self.render_inputs_mut() {
             *string = string.clone().rebase_on(base);
@@ -727,7 +748,7 @@ where
     }
 }
 
-impl<'a, S: 'a + ToOwned + ?Sized> fmt::Display for dyn FmtArgRenderer<'a, S>
+impl<'a, S: 'a + ToOwned + ?Sized> fmt::Display for dyn FmtRenderer<'a, S>
 where
     Self: fmt::Debug,
 {

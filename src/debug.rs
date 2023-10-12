@@ -161,6 +161,7 @@ impl Debug for FormatFlags {
     }
 }
 
+/// Test helper: ssert that the `outcome` is the same as the `expected`.
 #[macro_export]
 macro_rules! assert_required {
     ($outcome:expr, $expected:expr) => {
@@ -173,7 +174,9 @@ macro_rules! assert_required {
     };
 }
 
-/// Compares the debug string form of `tests_style` with `expected`.
+/// Test helper: compares the debug string form of `tests_style` with `expected`.
+///
+/// Macro usage (for usage examples see test source code): `($test_style:expr, $expected:expr)`
 #[macro_export]
 macro_rules! test_style_eq {
     ($test_style:expr, $expected:expr) => {
@@ -182,6 +185,11 @@ macro_rules! test_style_eq {
     };
 }
 
+/// Test helper: creates test requiring comparison of an `expected` (a
+/// string literal) value with a `test_style` applied
+/// to some `content` (a string literal).
+///
+/// Macro usage (for usage examples see test source code): `($test_style:expr, $content:literal, $expected:literal)`
 #[macro_export]
 macro_rules! test_styled_content_eq {
     ($test_style:expr, $content:literal, $expected:literal) => {
@@ -204,10 +212,25 @@ macro_rules! test_styled_content_eq {
     };
 }
 
-/// Automatically creates various kinds of useful tests for this crate.
+/// Test helper: single entry point for creating various tests useful for this crate.
+///
+/// Macro usage (for usage examples, see test source code):
+/// *  `(@str_cmp $name:ident : try:$test:expr; req:$req:literal)`: create a
+///    string comparison test which compares a string produced by `test`
+///    with the string specified in `req` (required).
+/// * `@style_eq $name: ident : try:$test:expr; req:($flags:expr, $fg:expr,
+///   $bg:expr)`: create a style comparison test by comparing the output of the
+///   style provided in `test` with manually specified flags it is expected to have.
+/// * `@style_eq $name: ident: try:$test:expr; req:$($req:tt)*`: create a style
+///   comparison test by comparing the output of the provided style in `test`
+///   with some sort expression that evaluates to a string which can be compared
+///   with the debug form of style.
+/// * `@content_eq $name: ident: try:$test:expr; content:$content:expr;
+///   req:$req:expr`: create a a test which compares a `test` style applied to
+///   some `content`, with the expected specified in `req`
 #[macro_export]
 macro_rules! style_test {
-    (@str_cmp $name: ident: try:$test:expr; req:$req:literal) => {
+    (@str_cmp $name:ident : try:$test:expr; req:$req:literal) => {
         #[test]
         fn $name() {
             $crate::assert_required!($test, $req)

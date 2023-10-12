@@ -305,7 +305,7 @@ pub fn ansi_format(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     quote! {
         {
-            use nu_ansi_term::{FmtArgRenderer, AnsiGenericString};
+            use nu_ansi_term::{FmtRenderer, AnsiGenericString};
             use std::fmt;
 
             #[derive(Default)]
@@ -314,14 +314,14 @@ pub fn ansi_format(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             }
 
             impl<'a> #random_id<'a>  {
-                fn new_boxed(render_inputs: Vec<AnsiGenericString<'a, str>>) -> Box<dyn FmtArgRenderer<str>> {
+                fn new_boxed(render_inputs: Vec<AnsiGenericString<'a, str>>) -> Box<dyn FmtRenderer<str>> {
                     Box::new(Self {
                         render_inputs,
                     })
                 }
             }
 
-            impl<'a> FmtArgRenderer<'a, str> for #random_id<'a> where Self: 'a + Clone
+            impl<'a> FmtRenderer<'a, str> for #random_id<'a> where Self: 'a + Clone
             {
                 fn render_inputs_ref(&self) -> &[AnsiGenericString<'a, str>] {
                     &self.render_inputs
@@ -331,7 +331,7 @@ pub fn ansi_format(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                     &mut self.render_inputs
                 }
 
-                fn clone_renderer(&self) -> Box<dyn FmtArgRenderer<'a, str>> {
+                fn clone_renderer(&self) -> Box<dyn FmtRenderer<'a, str>> {
                     Box::new(self.clone())
                 }
 
