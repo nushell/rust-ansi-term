@@ -2,7 +2,7 @@ use crate::ansi::RESET;
 use crate::difference::StyleDelta;
 use crate::style::{BasedOn, Color, Style};
 use crate::write::{AnyWrite, Content, StrLike, WriteResult};
-use crate::{fmt_write, write_any_fmt, write_any_str};
+use crate::{fmt_write, io_write, write_any_fmt, write_any_str};
 use std::borrow::Cow;
 use std::fmt::{self, Debug};
 use std::io;
@@ -618,8 +618,7 @@ impl<'a> AnsiByteString<'a> {
     /// Write an `AnsiByteString` to an `io::Write`.  This writes the escape
     /// sequences for the associated `Style` around the bytes.
     pub fn write_to<W: io::Write>(&self, w: &mut W) -> io::Result<()> {
-        let w: &mut dyn io::Write = w;
-        self.write_to_any(w)
+        self.write_to_any(io_write!(w))
     }
 }
 
@@ -656,7 +655,7 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericString<'a, S> {
         }
     }
 
-    /// Write this generic string to the given writer.
+    /// Write this generic string to the given `AnyWrite` implementor.
     pub fn write_to_any<W: AnyWrite + ?Sized>(&self, w: &mut W) -> WriteResult<W::Error>
     where
         S: StrLike<'a, W>,
@@ -672,8 +671,7 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericString<'a, S> {
 
 impl<'a> fmt::Display for AnsiStrings<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let f: &mut dyn fmt::Write = f;
-        self.write_to_any(f)
+        self.write_to_any(fmt_write!(f))
     }
 }
 
@@ -682,8 +680,7 @@ impl<'a> AnsiByteStrings<'a> {
     /// escape sequences for the associated `Style`s around each set of
     /// bytes.
     pub fn write_to<W: io::Write>(&self, w: &mut W) -> io::Result<()> {
-        let w: &mut dyn io::Write = w;
-        self.write_to_any(w)
+        self.write_to_any(io_write!(w))
     }
 }
 
@@ -718,18 +715,27 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
 
 // ---- fmt::Arguments like generic ----
 
-pub trait FmtArgRenderer<'a, S: 'a + ToOwned + ?Sized>: Debug {
+pub trait FmtArgRenderer<'a, S: 'a + ToOwned + ?Sized>
+where
+    Self: 'a + fmt::Debug,
+{
     fn render_inputs_ref(&self) -> &[AnsiGenericString<'a, S>];
     fn render_inputs_mut(&mut self) -> &mut [AnsiGenericString<'a, S>];
-    fn cached_render_output(&self) -> Option<Cow<'a, fmt::Arguments<'a>>>;
-    fn uncache_render_output(&mut self);
-    fn render(&mut self) -> Cow<'a, fmt::Arguments<'a>>;
+    fn render(&self) -> String;
     fn clone_renderer(&self) -> Box<dyn FmtArgRenderer<'a, S>>;
     fn rebase_on(&mut self, base: Style) {
         for string in self.render_inputs_mut() {
             *string = string.clone().rebase_on(base);
         }
-        self.uncache_render_output();
+    }
+}
+
+impl<'a, S: 'a + ToOwned + ?Sized> fmt::Display for dyn FmtArgRenderer<'a, S>
+where
+    Self: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.render())
     }
 }
 

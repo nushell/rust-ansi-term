@@ -1,7 +1,7 @@
-use std::borrow::Cow;
 use std::fmt;
 use std::fmt::Debug;
 use std::io;
+use std::{borrow::Cow, ops::Deref};
 
 use crate::{AnsiGenericStrings, FmtArgRenderer, Style};
 
@@ -144,7 +144,7 @@ impl<'a, S: 'a + ?Sized + ToOwned> Content<'a, S> {
         match self {
             x @ Content::FmtArgs(_) => Self::GenericStrings(context.paint(x).into()),
             x @ Content::StrLike(_) => Self::GenericStrings(context.paint(x).into()),
-            Content::GenericStrings(mut x) => Self::GenericStrings(x.rebase_on(context)),
+            Content::GenericStrings(x) => Self::GenericStrings(x.rebase_on(context)),
             Content::GenericFmtArg(mut x) => {
                 x.rebase_on(context);
                 Self::GenericFmtArg(x)
@@ -218,7 +218,7 @@ impl<'a, S: 'a + ?Sized + ToOwned> Content<'a, S> {
             Content::FmtArgs(args) => w.write_any_fmt(*args),
             Content::StrLike(s) => <S as StrLike<'a, W>>::write_str_to(s, w),
             Content::GenericStrings(x) => x.write_to_any(w),
-            Content::GenericFmtArg(x) => w.write_any_fmt(*x.render()),
+            Content::GenericFmtArg(x) => w.write_any_str(x.render().as_str().as_ref()),
         }
     }
 }
