@@ -1,4 +1,4 @@
-use nu_ansi_term::{ansi_generics, Color, Style};
+use nu_ansi_term::{ansi_format, Color, Style};
 
 fn main() {
     let yes = Color::Yellow.as_foreground().bold().paint("yes!");
@@ -16,7 +16,7 @@ fn main() {
 
     println!(
         "{}",
-        Style::new().blink().paint(ansi_generics!(
+        Style::new().blink().paint(ansi_format!(
             "{}{}{}",
             "format ",
             Color::Blue.paint(format_args!(" args ")),

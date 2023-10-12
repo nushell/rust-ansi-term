@@ -261,11 +261,3 @@ impl<'a> From<Vec<u8>> for Content<'a, [u8]> {
         Content::StrLike(Cow::Owned(s))
     }
 }
-
-// impl<'a, S: 'a + ?Sized + ToOwned> FromIterator<AnsiGenericString<'a, S>> for Content<'a, S> {
-//     fn from_iter<Iterable: IntoIterator<Item = AnsiGenericString<'a, S>>>(
-//         iterable: Iterable,
-//     ) -> Self {
-//         Content::from(AnsiGenericStrings::from_iter(iterable))
-//     }
-// }

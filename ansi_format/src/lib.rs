@@ -50,7 +50,7 @@ impl Parse for InputExplicit {
     }
 }
 
-/// ansi_generics!("{}{}", Color::Red.paint("hello "), Color::Blue.paint("kitty!"));
+/// ansi_format!("{}{}", Color::Red.paint("hello "), Color::Blue.paint("kitty!"));
 /// Form of struct taken from example at:https://docs.rs/syn/latest/syn/struct.Macro.html?search=parse#method.parse_body
 struct InputArgs {
     fmt_s: LitStr,
@@ -289,7 +289,7 @@ fn extract_inline_named_args(
 
 // Function like proc_macros have signature (TokenStream) -> TokenStream.
 #[proc_macro]
-pub fn ansi_generics(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn ansi_format(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let InputArgs {
         fmt_s,
         explicit_args,
