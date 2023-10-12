@@ -52,7 +52,7 @@ impl Style {
         }
 
         // Prefix everything with reset characters if needed
-        if self.is_prefix_with_reset() {
+        if self.is_reset_before_style() {
             write_any_str!(f, "\x1B[0m")?
         }
 

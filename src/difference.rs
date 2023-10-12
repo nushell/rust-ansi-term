@@ -140,7 +140,7 @@ impl Style {
         dbg!(self, next);
         if self == next {
             StyleDelta::Empty
-        } else if (next.is_empty() && !self.is_empty()) || next.is_prefix_with_reset() {
+        } else if (next.is_empty() && !self.is_empty()) || next.is_reset_before_style() {
             StyleDelta::PrefixUsing(next.reset_before_style())
         } else {
             let turned_off_in_next = BoolStyle::turned_off(self.into(), next.into());

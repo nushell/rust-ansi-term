@@ -346,7 +346,7 @@ impl Style {
     }
 
     /// Return whether or not `reset_before_style` is set.
-    pub fn is_prefix_with_reset(&self) -> bool {
+    pub fn is_reset_before_style(&self) -> bool {
         self.reset_before_style
     }
 
@@ -357,7 +357,7 @@ impl Style {
     }
 
     ///Set `reset_before_style` to the specified value.
-    pub fn set_prefix_with_reset(mut self, value: bool) -> Self {
+    pub fn set_reset_before_style(mut self, value: bool) -> Self {
         self.reset_before_style = value;
         self
     }
