@@ -35,8 +35,8 @@ impl BoolColoring {
 impl From<Coloring> for BoolColoring {
     fn from(coloring: Coloring) -> Self {
         BoolColoring {
-            foreground: coloring.foreground.is_some(),
-            background: coloring.background.is_some(),
+            foreground: coloring.fg.is_some(),
+            background: coloring.bg.is_some(),
         }
     }
 }
@@ -145,11 +145,11 @@ impl Style {
             if turned_off_in_next.formats.is_empty() && turned_off_in_next.coloring.is_empty() {
                 let turned_on_from_self = BoolStyle::turned_on(self.into(), next.into());
                 let mut r = Style::default().insert_formats(turned_on_from_self.formats);
-                if self.is_foreground() != next.is_foreground() {
-                    r = r.set_foreground(next.coloring.foreground);
+                if self.is_fg() != next.is_fg() {
+                    r = r.set_fg(next.coloring.fg);
                 }
-                if self.is_background() != next.is_background() {
-                    r = r.set_background(next.coloring.background);
+                if self.is_bg() != next.is_bg() {
+                    r = r.set_bg(next.coloring.bg);
                 }
                 StyleDelta::PrefixUsing(r)
             } else {
@@ -196,10 +196,10 @@ mod test {
 
     test!(nothing:    Green.fg(); Green.fg()  => Empty);
     test!(bold:  Green.fg(); Green.bold()    => PrefixUsing(style().bold()));
-    test!(unbold:  Green.bold();   Green.fg()  => PrefixUsing(style().foreground(Green).prefix_with_reset()));
+    test!(unbold:  Green.bold();   Green.fg()  => PrefixUsing(style().fg(Green).prefix_with_reset()));
     test!(nothing2:   Green.bold();   Green.bold()    => Empty);
 
-    test!(color_change: Red.fg(); Blue.fg() => PrefixUsing(style().foreground(Blue)));
+    test!(color_change: Red.fg(); Blue.fg() => PrefixUsing(style().fg(Blue)));
 
     test!(addition_of_blink:          style(); style().blink()          => PrefixUsing(style().blink()));
     test!(addition_of_dimmed:         style(); style().dimmed()         => PrefixUsing(style().dimmed()));

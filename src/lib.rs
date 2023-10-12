@@ -82,8 +82,8 @@
 //! use nu_ansi_term::Style;
 //! use nu_ansi_term::Color::{Blue, Cyan, Yellow};
 //!
-//! println!("Yellow on blue: {}", Style::new().background(Blue).foreground(Yellow).paint("yow!"));
-//! println!("Also yellow on blue: {}", Cyan.on(Blue).foreground(Yellow).paint("zow!"));
+//! println!("Yellow on blue: {}", Style::new().bg(Blue).fg(Yellow).paint("yow!"));
+//! println!("Also yellow on blue: {}", Cyan.on(Blue).fg(Yellow).paint("zow!"));
 //! ```
 //!
 //! You can turn a `Color` into a `Style` with the [`normal`] method.

@@ -110,14 +110,14 @@ impl Style {
         // (see `write_background_code` and `write_foreground_code`)
         write_occurred = write_code(
             f,
-            self.is_background(),
+            self.is_bg(),
             |f, x| x.write_background_code(f),
             write_occurred,
         )?;
 
         write_occurred = write_code(
             f,
-            self.is_foreground(),
+            self.is_fg(),
             |f, x| x.write_foreground_code(f),
             write_occurred,
         )?;
@@ -472,17 +472,17 @@ mod test {
         [green_bold_ul: Green.bold().underline(), "hi", "\x1B[1;4;32mhi\x1B[0m"]
         [green_bold_ul_2: Green.underline().bold(), "hi", "\x1B[1;4;32mhi\x1B[0m"]
         [purple_on_white: Purple.on(White), "hi", "\x1B[47;35mhi\x1B[0m"]
-        [purple_on_white_2: Purple.fg().background(White), "hi", "\x1B[47;35mhi\x1B[0m"]
-        [yellow_on_blue: Style::new().background(Blue).foreground(Yellow), "hi", "\x1B[44;33mhi\x1B[0m"]
+        [purple_on_white_2: Purple.fg().bg(White), "hi", "\x1B[47;35mhi\x1B[0m"]
+        [yellow_on_blue: Style::new().bg(Blue).fg(Yellow), "hi", "\x1B[44;33mhi\x1B[0m"]
         [magenta_on_white: Magenta.on(White), "hi", "\x1B[47;35mhi\x1B[0m"]
-        [magenta_on_white_2: Magenta.fg().background(White), "hi", "\x1B[47;35mhi\x1B[0m"]
-        [yellow_on_blue_2: Cyan.on(Blue).foreground(Yellow), "hi", "\x1B[44;33mhi\x1B[0m"]
-        [yellow_on_blue_reset: Cyan.on(Blue).prefix_with_reset().foreground(Yellow), "hi", "\x1B[0m\x1B[44;33mhi\x1B[0m"]
-        [yellow_on_blue_reset_2: Cyan.on(Blue).foreground(Yellow).prefix_with_reset(), "hi", "\x1B[0m\x1B[44;33mhi\x1B[0m"]
-        [cyan_bold_on_white: Cyan.bold().background(White), "hi", "\x1B[1;47;36mhi\x1B[0m"]
-        [cyan_ul_on_white: Cyan.underline().background(White), "hi", "\x1B[4;47;36mhi\x1B[0m"]
-        [cyan_bold_ul_on_white: Cyan.bold().underline().background(White), "hi", "\x1B[1;4;47;36mhi\x1B[0m"]
-        [cyan_ul_bold_on_white: Cyan.underline().bold().background(White), "hi", "\x1B[1;4;47;36mhi\x1B[0m"]
+        [magenta_on_white_2: Magenta.fg().bg(White), "hi", "\x1B[47;35mhi\x1B[0m"]
+        [yellow_on_blue_2: Cyan.on(Blue).fg(Yellow), "hi", "\x1B[44;33mhi\x1B[0m"]
+        [yellow_on_blue_reset: Cyan.on(Blue).prefix_with_reset().fg(Yellow), "hi", "\x1B[0m\x1B[44;33mhi\x1B[0m"]
+        [yellow_on_blue_reset_2: Cyan.on(Blue).fg(Yellow).prefix_with_reset(), "hi", "\x1B[0m\x1B[44;33mhi\x1B[0m"]
+        [cyan_bold_on_white: Cyan.bold().bg(White), "hi", "\x1B[1;47;36mhi\x1B[0m"]
+        [cyan_ul_on_white: Cyan.underline().bg(White), "hi", "\x1B[4;47;36mhi\x1B[0m"]
+        [cyan_bold_ul_on_white: Cyan.bold().underline().bg(White), "hi", "\x1B[1;4;47;36mhi\x1B[0m"]
+        [cyan_ul_bold_on_white: Cyan.underline().bold().bg(White), "hi", "\x1B[1;4;47;36mhi\x1B[0m"]
         [fixed: Fixed(100), "hi", "\x1B[38;5;100mhi\x1B[0m"]
         [fixed_on_purple: Fixed(100).on(Purple), "hi", "\x1B[45;38;5;100mhi\x1B[0m"]
         [fixed_on_fixed: Fixed(100).on(Fixed(200)), "hi", "\x1B[48;5;200;38;5;100mhi\x1B[0m"]
@@ -537,24 +537,24 @@ mod gnu_legacy_test {
     create_content_eq_tests!(
         [plain: Style::default(), "text/plain", "text/plain"]
         [red: Red, "hi", "\x1B[31mhi\x1B[0m"]
-        [black: Black.foreground(), "hi", "\x1B[30mhi\x1B[0m"]
+        [black: Black.fg(), "hi", "\x1B[30mhi\x1B[0m"]
         [yellow_bold: Yellow.bold(), "hi", "\x1B[01;33mhi\x1B[0m"]
-        [yellow_bold_2: Yellow.foreground().bold(), "hi", "\x1B[01;33mhi\x1B[0m"]
+        [yellow_bold_2: Yellow.fg().bold(), "hi", "\x1B[01;33mhi\x1B[0m"]
         [blue_underline: Blue.underline(), "hi", "\x1B[04;34mhi\x1B[0m"]
         [green_bold_ul: Green.bold().underline(), "hi", "\x1B[01;04;32mhi\x1B[0m"]
         [green_bold_ul_2: Green.underline().bold(), "hi", "\x1B[01;04;32mhi\x1B[0m"]
         [purple_on_white: Purple.on(White), "hi", "\x1B[47;35mhi\x1B[0m"]
-        [purple_on_white_2: Purple.foreground().background(White), "hi", "\x1B[47;35mhi\x1B[0m"]
-        [yellow_on_blue: Style::new().background(Blue).foreground(Yellow), "hi", "\x1B[44;33mhi\x1B[0m"]
-        [yellow_on_blue_reset: Cyan.on(Blue).prefix_with_reset().foreground(Yellow), "hi", "\x1B[0m\x1B[44;33mhi\x1B[0m"]
-        [yellow_on_blue_reset_2: Cyan.on(Blue).foreground(Yellow).prefix_with_reset(), "hi", "\x1B[0m\x1B[44;33mhi\x1B[0m"]
+        [purple_on_white_2: Purple.fg().bg(White), "hi", "\x1B[47;35mhi\x1B[0m"]
+        [yellow_on_blue: Style::new().bg(Blue).fg(Yellow), "hi", "\x1B[44;33mhi\x1B[0m"]
+        [yellow_on_blue_reset: Cyan.on(Blue).prefix_with_reset().fg(Yellow), "hi", "\x1B[0m\x1B[44;33mhi\x1B[0m"]
+        [yellow_on_blue_reset_2: Cyan.on(Blue).fg(Yellow).prefix_with_reset(), "hi", "\x1B[0m\x1B[44;33mhi\x1B[0m"]
         [magenta_on_white: Magenta.on(White), "hi", "\x1B[47;35mhi\x1B[0m"]
-        [magenta_on_white_2: Magenta.foreground().background(White), "hi", "\x1B[47;35mhi\x1B[0m"]
-        [yellow_on_blue_2: Cyan.on(Blue).foreground(Yellow), "hi", "\x1B[44;33mhi\x1B[0m"]
-        [cyan_bold_on_white: Cyan.bold().background(White), "hi", "\x1B[01;47;36mhi\x1B[0m"]
-        [cyan_ul_on_white: Cyan.underline().background(White), "hi", "\x1B[04;47;36mhi\x1B[0m"]
-        [cyan_bold_ul_on_white: Cyan.bold().underline().background(White), "hi", "\x1B[01;04;47;36mhi\x1B[0m"]
-        [cyan_ul_bold_on_white: Cyan.underline().bold().background(White), "hi", "\x1B[01;04;47;36mhi\x1B[0m"]
+        [magenta_on_white_2: Magenta.fg().bg(White), "hi", "\x1B[47;35mhi\x1B[0m"]
+        [yellow_on_blue_2: Cyan.on(Blue).fg(Yellow), "hi", "\x1B[44;33mhi\x1B[0m"]
+        [cyan_bold_on_white: Cyan.bold().bg(White), "hi", "\x1B[01;47;36mhi\x1B[0m"]
+        [cyan_ul_on_white: Cyan.underline().bg(White), "hi", "\x1B[04;47;36mhi\x1B[0m"]
+        [cyan_bold_ul_on_white: Cyan.bold().underline().bg(White), "hi", "\x1B[01;04;47;36mhi\x1B[0m"]
+        [cyan_ul_bold_on_white: Cyan.underline().bold().bg(White), "hi", "\x1B[01;04;47;36mhi\x1B[0m"]
         [fixed: Fixed(100), "hi", "\x1B[38;5;100mhi\x1B[0m"]
         [fixed_on_purple: Fixed(100).on(Purple), "hi", "\x1B[45;38;5;100mhi\x1B[0m"]
         [fixed_on_fixed: Fixed(100).on(Fixed(200)), "hi", "\x1B[48;5;200;38;5;100mhi\x1B[0m"]

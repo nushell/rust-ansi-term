@@ -41,14 +41,14 @@ impl FormatFlags {
 
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub struct Coloring {
-    pub foreground: Option<Color>,
-    pub background: Option<Color>,
+    pub fg: Option<Color>,
+    pub bg: Option<Color>,
 }
 
 impl Coloring {
     /// Check if there are no colors set.
     pub const fn is_empty(&self) -> bool {
-        self.foreground.is_none() && self.background.is_none()
+        self.fg.is_none() && self.bg.is_none()
     }
 }
 
@@ -69,8 +69,8 @@ impl BasedOn for Option<Color> {
 impl BasedOn for Coloring {
     fn rebase_on(self, base: Self) -> Self {
         Self {
-            foreground: self.foreground.rebase_on(base.foreground),
-            background: self.background.rebase_on(base.background),
+            fg: self.fg.rebase_on(base.fg),
+            bg: self.bg.rebase_on(base.bg),
         }
     }
 }
@@ -95,7 +95,7 @@ impl BasedOn for bool {
 /// ```
 /// use nu_ansi_term::{Style, Color};
 ///
-/// let style = Style::new().bold().background(Color::Black);
+/// let style = Style::new().bold().bg(Color::Black);
 /// println!("{}", style.paint("Bold on black"));
 /// ```
 #[derive(Clone, Copy)]
@@ -125,8 +125,8 @@ impl BasedOn for Style {
 impl PartialEq for Style {
     fn eq(&self, other: &Self) -> bool {
         self.formats.symmetric_difference(other.formats).is_empty()
-            && self.is_foreground() == other.is_foreground()
-            && self.is_background() == other.is_background()
+            && self.is_fg() == other.is_fg()
+            && self.is_bg() == other.is_bg()
     }
 }
 
@@ -138,8 +138,8 @@ impl Default for Style {
     ///
     /// ```
     /// use nu_ansi_term::Style;
-    /// assert_eq!(None,  Style::default().is_foreground());
-    /// assert_eq!(None,  Style::default().is_background());
+    /// assert_eq!(None,  Style::default().is_fg());
+    /// assert_eq!(None,  Style::default().is_bg());
     /// assert_eq!(false, Style::default().is_bold());
     /// assert_eq!("txt", Style::default().paint("txt").to_string());
     /// ```
@@ -277,8 +277,8 @@ impl Style {
         STRIKETHROUGH
     );
 
-    style_color_methods!(foreground);
-    style_color_methods!(background);
+    style_color_methods!(fg);
+    style_color_methods!(bg);
 
     /// Return true if this `Style` requires no escape codes to be represented.
     ///
@@ -304,7 +304,7 @@ impl Style {
     /// Check if style has any coloring.
     #[inline]
     pub fn has_color(&self) -> bool {
-        self.coloring.foreground.is_some() || self.coloring.background.is_some()
+        self.coloring.fg.is_some() || self.coloring.bg.is_some()
     }
 
     /// Get the formatting flags of this style.
@@ -322,8 +322,7 @@ impl Style {
 
     /// Create a copy of this style with the specified `coloring`.
     pub fn coloring(self, coloring: Coloring) -> Self {
-        self.set_foreground(coloring.foreground)
-            .set_background(coloring.background)
+        self.set_fg(coloring.fg).set_bg(coloring.bg)
     }
 
     /// Create a copy of this style, with the styling properties updated using
@@ -332,15 +331,15 @@ impl Style {
             prefix_with_reset: !self.prefix_with_reset && other.prefix_with_reset,
             formats: self.formats.set_flags(other.formats),
             coloring: Coloring {
-                foreground: if self.coloring.foreground.is_none() {
-                    other.coloring.foreground
+                fg: if self.coloring.fg.is_none() {
+                    other.coloring.fg
                 } else {
-                    self.coloring.foreground
+                    self.coloring.fg
                 },
-                background: if self.coloring.background.is_none() {
-                    other.coloring.background
+                bg: if self.coloring.bg.is_none() {
+                    other.coloring.bg
                 } else {
-                    self.coloring.background
+                    self.coloring.bg
                 },
             },
         }
@@ -497,7 +496,7 @@ impl Color {
     /// println!("{}", style.paint("eyyyy"));
     /// ```
     pub fn fg(self) -> Style {
-        Style::new().foreground(self)
+        Style::new().fg(self)
     }
 
     /// Returns a `Style` with the background set to this color.
@@ -507,11 +506,11 @@ impl Color {
     /// ```
     /// use nu_ansi_term::Color;
     ///
-    /// let style = Color::White.bg().foreground(Color::Rgb(31, 31, 31));
+    /// let style = Color::White.bg().fg(Color::Rgb(31, 31, 31));
     /// println!("{}", style.paint("eyyyy"));
     /// ```
     pub fn bg(self) -> Style {
-        Style::new().background(self)
+        Style::new().bg(self)
     }
 
     /// Returns a `Style` with the foreground color set to this color and the
@@ -526,13 +525,13 @@ impl Color {
     /// println!("{}", style.paint("eyyyy"));
     /// ```
     pub fn on(self, bg: Self) -> Style {
-        Style::new().foreground(self).background(bg)
+        Style::new().fg(self).bg(bg)
     }
 
     /// Returns a `Style` with the background color set to this color and the
     /// foreground color property set to the given color.
     pub fn under(self, fg: Self) -> Style {
-        Style::new().background(self).foreground(fg)
+        Style::new().bg(self).fg(fg)
     }
 
     color_methods!(
@@ -553,7 +552,7 @@ impl From<Color> for Style {
     ///
     /// ```
     /// use nu_ansi_term::{Style, Color};
-    /// let green_foreground = Style::default().foreground(Color::Green);
+    /// let green_foreground = Style::default().fg(Color::Green);
     /// assert_eq!(green_foreground, Color::Green.fg());
     /// assert_eq!(green_foreground, Color::Green.into());
     /// assert_eq!(green_foreground, Style::from(Color::Green));

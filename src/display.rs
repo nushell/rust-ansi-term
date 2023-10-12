@@ -564,7 +564,7 @@ impl Style {
     /// use nu_ansi_term::Style;
     /// use nu_ansi_term::Color;
     ///
-    /// println!("{}", Style::new().foreground(Color::Blue).paint("nice!"));
+    /// println!("{}", Style::new().fg(Color::Blue).paint("nice!"));
     /// ```
     #[inline]
     #[must_use]
@@ -585,7 +585,7 @@ impl Style {
 
 impl Color {
     /// Paints the given text with this color, returning an ANSI string.
-    /// This is a short-cut so you don’t have to use `Blue.foreground()` just
+    /// This is a short-cut so you don’t have to use `Blue.fg()` just
     /// to get blue text.
     ///
     /// ```

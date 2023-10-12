@@ -90,8 +90,8 @@ You can do this using the `fg` method:
 use nu_ansi_term::Style;
 use nu_ansi_term::Color::{Blue, Cyan, Yellow};
 
-println!("Yellow on blue: {}", Style::new().on(Blue).foreground(Yellow).paint("yow!"));
-println!("Also yellow on blue: {}", Cyan.on(Blue).foreground(Yellow).paint("zow!"));
+println!("Yellow on blue: {}", Style::new().on(Blue).fg(Yellow).paint("yow!"));
+println!("Also yellow on blue: {}", Cyan.on(Blue).fg(Yellow).paint("zow!"));
 ```
 
 You can turn a `Color` into a `Style` with the `normal` method.
@@ -101,7 +101,7 @@ This will produce the exact same `AnsiString` as if you just used the `paint` me
 use nu_ansi_term::Style;
 use nu_ansi_term::Color::Red;
 
-Red.foreground().paint("yet another red string");
+Red.fg().paint("yet another red string");
 Style::default().paint("a completely regular string");
 ```
 

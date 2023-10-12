@@ -110,11 +110,7 @@ impl Debug for Style {
             write!(
                 f,
                 "{}",
-                debug_style_to_string(
-                    self.formats,
-                    self.coloring.foreground,
-                    self.coloring.background
-                )?
+                debug_style_to_string(self.formats, self.coloring.fg, self.coloring.bg)?
             )
         }
     }
@@ -124,11 +120,11 @@ impl Debug for Coloring {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if !f.alternate() {
             f.debug_struct("Coloring")
-                .field("foreground", &self.foreground)
-                .field("background", &self.background)
+                .field("foreground", &self.fg)
+                .field("background", &self.bg)
                 .finish()
         } else {
-            debug_write_coloring_to(f, self.foreground, self.background, false)?;
+            debug_write_coloring_to(f, self.fg, self.bg, false)?;
             Ok(())
         }
     }
@@ -372,8 +368,8 @@ impl DebugDiff for Coloring {
     fn debug_diff(&self, expected: &Self) -> String {
         format!(
             "Coloring {{\n\tforeground: {},\n\tbackground: {},\n}}",
-            self.foreground.debug_diff(&expected.foreground),
-            expected.background.debug_diff(&expected.background)
+            self.fg.debug_diff(&expected.fg),
+            expected.bg.debug_diff(&expected.bg)
         )
     }
 }
