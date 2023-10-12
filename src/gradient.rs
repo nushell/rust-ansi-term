@@ -13,12 +13,12 @@ pub struct Gradient {
 impl Gradient {
     /// Creates a new [Gradient] with two [Rgb] colors, `start` and `end`
     #[inline]
-    pub const fn from_rgb(start: Rgb, end: Rgb) -> Self {
+    pub const fn new(start: Rgb, end: Rgb) -> Self {
         Self { start, end }
     }
 
     /// Creates a [Gradient] with two [`Color`] colors, `start` and `end`.
-    pub const fn from_colors(start: Color, end: Color) -> Self {
+    pub const fn from_color_rgb(start: Color, end: Color) -> Self {
         let start_grad = match start {
             Color::Rgb(r, g, b) => Rgb { r, g, b },
             _ => Rgb { r: 0, g: 0, b: 0 },
@@ -42,7 +42,7 @@ impl Gradient {
     /// Returns the reverse of `self`
     #[inline]
     pub const fn reverse(&self) -> Self {
-        Self::from_rgb(self.end, self.start)
+        Self::new(self.end, self.start)
     }
 
     /// Creates a string with the given `text` wrapped in ANSI escape codes that

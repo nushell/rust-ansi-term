@@ -9,17 +9,17 @@ fn main() {
     // a gradient from hex colors
     let start = Rgb::from_hex(0x40c9ff);
     let end = Rgb::from_hex(0xe81cff);
-    let grad0 = Gradient::from_rgb(start, end);
+    let grad0 = Gradient::new(start, end);
 
     // a gradient from color::rgb()
     let start = Color::Rgb(64, 201, 255);
     let end = Color::Rgb(232, 28, 255);
-    let gradient = Gradient::from_colors(start, end);
+    let gradient = Gradient::from_color_rgb(start, end);
 
     // a slightly different gradient
     let start2 = Color::Rgb(128, 64, 255);
     let end2 = Color::Rgb(0, 28, 255);
-    let gradient2 = Gradient::from_colors(start2, end2);
+    let gradient2 = Gradient::from_color_rgb(start2, end2);
 
     // reverse the gradient
     let gradient3 = gradient.reverse();
