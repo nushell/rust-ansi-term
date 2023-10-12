@@ -193,10 +193,6 @@ impl MatchedExplicit {
                 ))),
         }
     }
-
-    fn id(&self) -> &Ident {
-        self.name.id()
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -244,13 +240,6 @@ impl FormatArgs {
         FormatArgs { args }
     }
 
-    fn all_names(&self) -> impl Iterator<Item = &Ident> {
-        self.args.iter().map(|arg| match arg {
-            Arg::Explicit(x) => x.id(),
-            Arg::ImplicitNamed(name) => name,
-        })
-    }
-
     fn inline_names(&self) -> impl Iterator<Item = &Ident> {
         self.args.iter().filter_map(Arg::filter_implicit)
     }
@@ -259,7 +248,7 @@ impl FormatArgs {
         self.args.iter().filter_map(Arg::filter_explicit)
     }
 
-    fn explicit_arg_tokens(&self) -> impl Iterator<Item = TokenStream2> + '_ {
+    fn arg_tokens(&self) -> impl Iterator<Item = TokenStream2> + '_ {
         self.args
             .iter()
             .enumerate()
@@ -303,33 +292,27 @@ pub fn ansi_generics(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
     } = parse_macro_input!(input);
 
     let format_args = extract_inline_named_args(explicit_args, fmt_s.value());
-    let all_names: Vec<&Ident> = format_args.all_names().collect();
-    let n_inputs = all_names.len();
-    let explicit_arg_tokens: Vec<TokenStream2> = format_args.explicit_arg_tokens().collect();
+    let arg_tokens: Vec<TokenStream2> = format_args.arg_tokens().collect();
     let explicit_exprs: Vec<Expr> = format_args.explicit_exprs().collect();
     let inline_names: Vec<&Ident> = format_args.inline_names().collect();
-    let random_struct_name = format_ident!("GenericFmtArgImplementor{}", random::<usize>());
+    let random_id = format_ident!("GenericFmtArgImplementor{}", random::<usize>());
+    let format_args = quote!(format_args!(#fmt_s, #(#arg_tokens),*));
+    let fmt_args_str = format!("Some({})", format_args);
+    let random_id_str = format!("{}", random_id);
 
     quote! {
         {
-            extern crate self as nu_ansi_term;
             use nu_ansi_term::{FmtArgRenderer, AnsiGenericString};
+            use std::borrow::Cow;
             use std::fmt;
 
-            #[derive(Default, Debug)]
-            struct #random_struct_name<'a, S: 'a + ?Sized + ToOwned> {
+            #[derive(Default)]
+            struct #random_id<'a, S: 'a + ?Sized + ToOwned> {
                 render_inputs: Vec<AnsiGenericString<'a, S>>,
                 cached_render_output: Option<Cow<'a, fmt::Arguments<'a>>>,
-                re_render_required: bool,
             }
 
-            fn render_inputs_ref(&self) -> &[AnsiGenericString<'a, S>];
-            fn render_inputs_mut(&mut self) -> &mut [AnsiGenericString<'a, S>];
-            fn cached_render_output(&self) -> Option<Cow<'a, fmt::Arguments<'a>>>;
-            fn uncache_render_output(&mut self);
-            fn render(&self) -> Cow<'a, fmt::Arguments<'a>>;
-
-            impl trait FmtArgRenderer<'a, S: 'a + ToOwned + ?Sized> for #random_struct_name<'a, S>
+            impl<'a, S: 'a + ToOwned + ?Sized> FmtArgRenderer<'a, S> for #random_id<'a, S> where Self: Clone
             {
                 fn render_inputs_ref(&self) -> &[AnsiGenericString<'a, S>] {
                     &self.render_inputs
@@ -339,7 +322,7 @@ pub fn ansi_generics(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                     &mut self.render_inputs
                 }
 
-                fn cached_render_output(&self) -> Option<&fmt::Arguments<'a, S>> {
+                fn cached_render_output(&self) -> Option<Cow<'a, fmt::Arguments<'a>>> {
                     self.cached_render_output.as_ref()
                 }
 
@@ -348,28 +331,46 @@ pub fn ansi_generics(input: proc_macro::TokenStream) -> proc_macro::TokenStream 
                 }
 
 
+                fn clone_renderer(&self) -> Box<dyn FmtArgRenderer<'a, S>> {
+                    Box::new(self.clone())
+                }
+
                 fn render(&mut self) -> Cow<'a, fmt::Arguments<'a>> {
                     if let Some(arg) =  self.cached_render_output() {
                         arg
                     } else {
                         let render_inputs = self.render_inputs_ref();
-                        self.cached_render_output.replace(Cow::Owned(format_args!(#fmt_s, #(#explicit_arg_tokens),*)));
+                        self.cached_render_output.replace(
+                            Cow::Owned(#format_args)
+                        );
                         self.cached_render_output.clone()
                     }
                 }
             }
 
-            impl Clone for #random_struct_name {
+            impl<'a, S: 'a + ?Sized + ToOwned> Clone for #random_id<'a, S> {
                 fn clone(&self) -> Self {
                     Self {
-                        render_inputs: render_inputs.clone(),
-                        ..Default::default(),
+                        render_inputs: self.render_inputs.clone(),
+                        ..Default::default()
                     }
                 }
             }
 
-            #random_struct_name {
-                render_inputs: vec![#(#explicit_exprs),* #(#inline_names.clone()),*],
+            impl<'a, S: 'a + ?Sized + ToOwned> fmt::Debug for #random_id<'a, S>
+            {
+                fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                    f.debug_struct(#random_id_str)
+                        .field("render_inputs", &self.render_inputs)
+                        .field(
+                            "fmt_args", #fmt_args_str
+                        )
+                }
+            }
+
+            #random_id {
+                render_inputs:
+                    vec![#(#explicit_exprs),* #(#inline_names.clone()),*],
                 ..Default::default()
             }
         }

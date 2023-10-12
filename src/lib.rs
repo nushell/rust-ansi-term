@@ -274,3 +274,4 @@ mod rgb;
 pub use rgb::*;
 
 pub use ansi_generics_macro::ansi_generics;
+extern crate self as nu_ansi_term;

@@ -718,17 +718,16 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
 
 // ---- fmt::Arguments like generic ----
 
-pub struct AnsiGenericFmtArgs<'a, S: 'a + ToOwned + ?Sized> {}
-
-pub trait FmtArgRenderer<'a, S: 'a + ToOwned + ?Sized> {
+pub trait FmtArgRenderer<'a, S: 'a + ToOwned + ?Sized>: Debug {
     fn render_inputs_ref(&self) -> &[AnsiGenericString<'a, S>];
     fn render_inputs_mut(&mut self) -> &mut [AnsiGenericString<'a, S>];
     fn cached_render_output(&self) -> Option<Cow<'a, fmt::Arguments<'a>>>;
     fn uncache_render_output(&mut self);
-    fn render(&self) -> Cow<'a, fmt::Arguments<'a>>;
+    fn render(&mut self) -> Cow<'a, fmt::Arguments<'a>>;
+    fn clone_renderer(&self) -> Box<dyn FmtArgRenderer<'a, S>>;
     fn rebase_on(&mut self, base: Style) {
         for string in self.render_inputs_mut() {
-            *string = string.rebase_on(base);
+            *string = string.clone().rebase_on(base);
         }
         self.uncache_render_output();
     }

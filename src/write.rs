@@ -3,7 +3,7 @@ use std::fmt;
 use std::fmt::Debug;
 use std::io;
 
-use crate::{AnsiFmtArgs, AnsiGenericStrings, FmtArgRenderer, Style};
+use crate::{AnsiGenericStrings, FmtArgRenderer, Style};
 
 /// Helper to alias  over [`fmt::Result`], or [`io::Result`] depending on the
 /// error type used ([`fmt::Error`] or [`io::Error`]).
@@ -136,7 +136,7 @@ pub enum Content<'a, S: 'a + ?Sized + ToOwned> {
     /// [`ToOwned::Owned`] variant specified by that implementation.
     StrLike(Cow<'a, S>),
     GenericStrings(AnsiGenericStrings<'a, S>),
-    GenericFmtArg(Box<&'a dyn FmtArgRenderer<'a, S>>),
+    GenericFmtArg(Box<dyn FmtArgRenderer<'a, S>>),
 }
 
 impl<'a, S: 'a + ?Sized + ToOwned> Content<'a, S> {
@@ -185,7 +185,7 @@ impl<'a, S: 'a + ?Sized + ToOwned> Clone for Content<'a, S> {
             Self::FmtArgs(x) => Self::FmtArgs(*x),
             Self::StrLike(x) => Self::StrLike(x.clone()),
             Self::GenericStrings(x) => Self::GenericStrings(x.clone()),
-            Self::GenericFmtArg(x) => todo!(),
+            Self::GenericFmtArg(x) => Self::GenericFmtArg(x.clone_renderer()),
         }
     }
 }
@@ -199,6 +199,7 @@ where
             Self::FmtArgs(x) => f.debug_tuple("FmtArgs").field(x).finish(),
             Self::StrLike(x) => f.debug_tuple("StrLike").field(&x.as_ref()).finish(),
             Self::GenericStrings(x) => f.debug_tuple("Ansi").field(&x).finish(),
+            Self::GenericFmtArg(x) => x.fmt(f),
         }
     }
 }
@@ -217,6 +218,7 @@ impl<'a, S: 'a + ?Sized + ToOwned> Content<'a, S> {
             Content::FmtArgs(args) => w.write_any_fmt(*args),
             Content::StrLike(s) => <S as StrLike<'a, W>>::write_str_to(s, w),
             Content::GenericStrings(x) => x.write_to_any(w),
+            Content::GenericFmtArg(x) => w.write_any_fmt(*x.render()),
         }
     }
 }
@@ -242,9 +244,9 @@ impl<'a, S: 'a + ?Sized + ToOwned> From<AnsiGenericStrings<'a, S>> for Content<'
     }
 }
 
-impl<'a, S: 'a + ?Sized + ToOwned> From<AnsiFmtArgs<'a, S>> for Content<'a, S> {
-    fn from(strings: AnsiGenericStrings<'a, S>) -> Self {
-        Content::GenericStrings(strings)
+impl<'a, S: 'a + ?Sized + ToOwned> From<Box<dyn FmtArgRenderer<'a, S>>> for Content<'a, S> {
+    fn from(renderer: Box<dyn FmtArgRenderer<'a, S>>) -> Self {
+        Content::GenericFmtArg(renderer)
     }
 }
 
