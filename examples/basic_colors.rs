@@ -20,9 +20,9 @@ fn main() {
     println!("\nprefix_with_reset at work:");
     println!(
         "\x1b[33mReset {} \x1b[33mand {}\x1b[0m",
-        Style::new().prefix_with_reset().bold().paint("bold"),
+        Style::new().reset_before_style().bold().paint("bold"),
         Style::new()
-            .prefix_with_reset()
+            .reset_before_style()
             .underline()
             .paint("underline")
     );

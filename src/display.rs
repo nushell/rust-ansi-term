@@ -374,7 +374,7 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
         for update in self.style_updates.to_mut() {
             update.style_delta = match update.style_delta {
                 StyleDelta::PrefixUsing(style) => {
-                    StyleDelta::PrefixUsing(if style.prefix_with_reset {
+                    StyleDelta::PrefixUsing(if style.reset_before_style {
                         style.rebase_on(base)
                     } else {
                         style

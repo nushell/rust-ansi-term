@@ -105,7 +105,7 @@ impl BasedOn for bool {
 )]
 pub struct Style {
     /// Whether this style will be prefixed with [`RESET`](crate::ansi::RESET).
-    pub prefix_with_reset: bool,
+    pub reset_before_style: bool,
     /// Flags representing whether particular formatting properties are set or not.
     pub formats: FormatFlags,
     /// Data regarding the foreground/background color applied by this style.
@@ -115,7 +115,7 @@ pub struct Style {
 impl BasedOn for Style {
     fn rebase_on(self, base: Self) -> Self {
         Style {
-            prefix_with_reset: self.prefix_with_reset.rebase_on(base.prefix_with_reset),
+            reset_before_style: self.reset_before_style.rebase_on(base.reset_before_style),
             formats: self.formats.rebase_on(base.formats),
             coloring: self.coloring.rebase_on(base.coloring),
         }
@@ -145,7 +145,7 @@ impl Default for Style {
     /// ```
     fn default() -> Self {
         Style {
-            prefix_with_reset: false,
+            reset_before_style: false,
             formats: FormatFlags::empty(),
             coloring: Coloring::default(),
         }
@@ -292,10 +292,10 @@ impl Style {
     /// ```
     #[inline]
     pub const fn is_empty(&self) -> bool {
-        self.formats.is_empty() && self.coloring.is_empty() && !self.prefix_with_reset
+        self.formats.is_empty() && self.coloring.is_empty() && !self.reset_before_style
     }
 
-    /// Check if style has no formatting or coloring (it might still have `prefix_with_reset`).
+    /// Check if style has no formatting or coloring (it might still have `reset_before_style`).
     #[inline]
     pub fn has_no_styling(&self) -> bool {
         !self.has_color() && !self.has_formatting()
@@ -328,7 +328,7 @@ impl Style {
     /// Create a copy of this style, with the styling properties updated using
     pub fn update_with(self, other: Self) -> Self {
         Self {
-            prefix_with_reset: !self.prefix_with_reset && other.prefix_with_reset,
+            reset_before_style: !self.reset_before_style && other.reset_before_style,
             formats: self.formats.set_flags(other.formats),
             coloring: Coloring {
                 fg: if self.coloring.fg.is_none() {
@@ -345,20 +345,20 @@ impl Style {
         }
     }
 
-    /// Return whether or not `prefix_with_reset` is set.
+    /// Return whether or not `reset_before_style` is set.
     pub fn is_prefix_with_reset(&self) -> bool {
-        self.prefix_with_reset
+        self.reset_before_style
     }
 
-    /// Set `prefix_with_reset` to be `true`.
-    pub fn prefix_with_reset(mut self) -> Self {
-        self.prefix_with_reset = true;
+    /// Set `reset_before_style` to be `true`.
+    pub fn reset_before_style(mut self) -> Self {
+        self.reset_before_style = true;
         self
     }
 
-    ///Set `prefix_with_reset` to the specified value.
+    ///Set `reset_before_style` to the specified value.
     pub fn set_prefix_with_reset(mut self, value: bool) -> Self {
-        self.prefix_with_reset = value;
+        self.reset_before_style = value;
         self
     }
 }
@@ -603,6 +603,6 @@ mod serde_json_tests {
     fn style_serialization() {
         let style = Style::default();
 
-        assert_eq!(serde_json::to_string(&style).unwrap(), "{\"foreground\":null,\"background\":null,\"is_bold\":false,\"is_dimmed\":false,\"is_italic\":false,\"is_underline\":false,\"is_blink\":false,\"is_reverse\":false,\"is_hidden\":false,\"is_strikethrough\":false,\"prefix_with_reset\":false}".to_string());
+        assert_eq!(serde_json::to_string(&style).unwrap(), "{\"foreground\":null,\"background\":null,\"is_bold\":false,\"is_dimmed\":false,\"is_italic\":false,\"is_underline\":false,\"is_blink\":false,\"is_reverse\":false,\"is_hidden\":false,\"is_strikethrough\":false,\"reset_before_style\":false}".to_string());
     }
 }

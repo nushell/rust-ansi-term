@@ -12,7 +12,7 @@ pub enum StyleDelta {
 #[derive(Clone, Copy, Debug)]
 pub struct BoolStyle {
     /// Whether this style will be prefixed with [`RESET`](crate::ansi::RESET).
-    pub prefix_with_reset: bool,
+    pub reset_before_style: bool,
     /// Flags representing whether particular formatting properties are set or not.
     pub formats: FormatFlags,
     /// Data regarding the foreground/background color applied by this style.
@@ -99,7 +99,7 @@ impl Difference for FormatFlags {
 impl Difference for BoolStyle {
     fn not(self) -> Self {
         Self {
-            prefix_with_reset: self.prefix_with_reset.not(),
+            reset_before_style: self.reset_before_style.not(),
             formats: self.formats.complement(),
             coloring: self.coloring.not(),
         }
@@ -107,7 +107,9 @@ impl Difference for BoolStyle {
 
     fn conjunction(self, other: Self) -> Self {
         Self {
-            prefix_with_reset: self.prefix_with_reset.conjunction(other.prefix_with_reset),
+            reset_before_style: self
+                .reset_before_style
+                .conjunction(other.reset_before_style),
             formats: self.formats.conjunction(other.formats),
             coloring: self.coloring.conjunction(other.coloring),
         }
@@ -117,12 +119,12 @@ impl Difference for BoolStyle {
 impl From<Style> for BoolStyle {
     fn from(style: Style) -> Self {
         let Style {
-            prefix_with_reset,
+            reset_before_style,
             formats,
             coloring,
         } = style;
         Self {
-            prefix_with_reset,
+            reset_before_style,
             formats,
             coloring: coloring.into(),
         }
@@ -139,7 +141,7 @@ impl Style {
         if self == next {
             StyleDelta::Empty
         } else if (next.is_empty() && !self.is_empty()) || next.is_prefix_with_reset() {
-            StyleDelta::PrefixUsing(next.prefix_with_reset())
+            StyleDelta::PrefixUsing(next.reset_before_style())
         } else {
             let turned_off_in_next = BoolStyle::turned_off(self.into(), next.into());
             if turned_off_in_next.formats.is_empty() && turned_off_in_next.coloring.is_empty() {
@@ -153,7 +155,7 @@ impl Style {
                 }
                 StyleDelta::PrefixUsing(r)
             } else {
-                StyleDelta::PrefixUsing(next.prefix_with_reset())
+                StyleDelta::PrefixUsing(next.reset_before_style())
             }
         }
     }
@@ -196,7 +198,7 @@ mod test {
 
     test!(nothing:    Green.fg(); Green.fg()  => Empty);
     test!(bold:  Green.fg(); Green.bold()    => PrefixUsing(style().bold()));
-    test!(unbold:  Green.bold();   Green.fg()  => PrefixUsing(style().fg(Green).prefix_with_reset()));
+    test!(unbold:  Green.bold();   Green.fg()  => PrefixUsing(style().fg(Green).reset_before_style()));
     test!(nothing2:   Green.bold();   Green.bold()    => Empty);
 
     test!(color_change: Red.fg(); Blue.fg() => PrefixUsing(style().fg(Blue)));
@@ -207,9 +209,9 @@ mod test {
     test!(addition_of_reverse:        style(); style().reverse()        => PrefixUsing(style().reverse()));
     test!(addition_of_strikethrough:  style(); style().strikethrough()  => PrefixUsing(style().strikethrough()));
 
-    test!(removal_of_strikethrough:   style().strikethrough(); style()  => PrefixUsing(style().prefix_with_reset()));
-    test!(removal_of_reverse:         style().reverse();       style()  => PrefixUsing(style().prefix_with_reset()));
-    test!(removal_of_hidden:          style().hidden();        style()  => PrefixUsing(style().prefix_with_reset()));
-    test!(removal_of_dimmed:          style().dimmed();        style()  => PrefixUsing(style().prefix_with_reset()));
-    test!(removal_of_blink:           style().blink();         style()  => PrefixUsing(style().prefix_with_reset()));
+    test!(removal_of_strikethrough:   style().strikethrough(); style()  => PrefixUsing(style().reset_before_style()));
+    test!(removal_of_reverse:         style().reverse();       style()  => PrefixUsing(style().reset_before_style()));
+    test!(removal_of_hidden:          style().hidden();        style()  => PrefixUsing(style().reset_before_style()));
+    test!(removal_of_dimmed:          style().dimmed();        style()  => PrefixUsing(style().reset_before_style()));
+    test!(removal_of_blink:           style().blink();         style()  => PrefixUsing(style().reset_before_style()));
 }
