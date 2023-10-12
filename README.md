@@ -77,21 +77,21 @@ println!("Demonstrating {} and {}!",
          Blue.bold().paint("blue bold"),
          Yellow.underline().paint("yellow underline"));
 
-println!("Yellow on blue: {}", Yellow.on_background(Blue).paint("wow!"));
+println!("Yellow on blue: {}", Yellow.on(Blue).paint("wow!"));
 ```
 
 The complete list of styles you can use are:
 `bold`, `dimmed`, `italic`, `underline`, `blink`, `reverse`, `hidden`, and `on` for background colors.
 
 In some cases, you may find it easier to change the foreground on an existing `Style` rather than starting from the appropriate `Color`.
-You can do this using the `foreground` method:
+You can do this using the `fg` method:
 
 ```rust
 use nu_ansi_term::Style;
 use nu_ansi_term::Color::{Blue, Cyan, Yellow};
 
-println!("Yellow on blue: {}", Style::new().on_background(Blue).foreground(Yellow).paint("yow!"));
-println!("Also yellow on blue: {}", Cyan.on_background(Blue).foreground(Yellow).paint("zow!"));
+println!("Yellow on blue: {}", Style::new().on(Blue).foreground(Yellow).paint("yow!"));
+println!("Also yellow on blue: {}", Cyan.on(Blue).foreground(Yellow).paint("zow!"));
 ```
 
 You can turn a `Color` into a `Style` with the `normal` method.
@@ -126,7 +126,7 @@ This can be included wherever you would use a `Color`:
 use nu_ansi_term::Color::Fixed;
 
 Fixed(134).paint("A sort of light purple");
-Fixed(221).on_background(Fixed(124)).paint("Mustard in the ketchup");
+Fixed(221).on(Fixed(124)).paint("Mustard in the ketchup");
 ```
 
 The first sixteen of these values are the same as the normal and bold standard color variants.

@@ -194,12 +194,12 @@ mod test {
         };
     }
 
-    test!(nothing:    Green.as_foreground(); Green.as_foreground()  => Empty);
-    test!(bold:  Green.as_foreground(); Green.bold()    => PrefixUsing(style().bold()));
-    test!(unbold:  Green.bold();   Green.as_foreground()  => PrefixUsing(style().foreground(Green).prefix_with_reset()));
+    test!(nothing:    Green.fg(); Green.fg()  => Empty);
+    test!(bold:  Green.fg(); Green.bold()    => PrefixUsing(style().bold()));
+    test!(unbold:  Green.bold();   Green.fg()  => PrefixUsing(style().foreground(Green).prefix_with_reset()));
     test!(nothing2:   Green.bold();   Green.bold()    => Empty);
 
-    test!(color_change: Red.as_foreground(); Blue.as_foreground() => PrefixUsing(style().foreground(Blue)));
+    test!(color_change: Red.fg(); Blue.fg() => PrefixUsing(style().foreground(Blue)));
 
     test!(addition_of_blink:          style(); style().blink()          => PrefixUsing(style().blink()));
     test!(addition_of_dimmed:         style(); style().dimmed()         => PrefixUsing(style().dimmed()));

@@ -67,7 +67,7 @@
 //!          Blue.bold().paint("blue bold"),
 //!          Yellow.underline().paint("yellow underline"));
 //!
-//! println!("Yellow on blue: {}", Yellow.on_background(Blue).paint("wow!"));
+//! println!("Yellow on blue: {}", Yellow.on(Blue).paint("wow!"));
 //! ```
 //!
 //! The complete list of styles you can use are: [`bold`], [`dimmed`], [`italic`],
@@ -76,14 +76,14 @@
 //!
 //! In some cases, you may find it easier to change the foreground on an
 //! existing `Style` rather than starting from the appropriate `Color`.
-//! You can do this using the [`foreground`] method:
+//! You can do this using the [`fg`] method:
 //!
 //! ```
 //! use nu_ansi_term::Style;
 //! use nu_ansi_term::Color::{Blue, Cyan, Yellow};
 //!
 //! println!("Yellow on blue: {}", Style::new().background(Blue).foreground(Yellow).paint("yow!"));
-//! println!("Also yellow on blue: {}", Cyan.on_background(Blue).foreground(Yellow).paint("zow!"));
+//! println!("Also yellow on blue: {}", Cyan.on(Blue).foreground(Yellow).paint("zow!"));
 //! ```
 //!
 //! You can turn a `Color` into a `Style` with the [`normal`] method.
@@ -98,7 +98,7 @@
 //! use nu_ansi_term::Style;
 //! use nu_ansi_term::Color::Red;
 //!
-//! println!("{}", Red.as_foreground().paint("yet another red string"));
+//! println!("{}", Red.fg().paint("yet another red string"));
 //! println!("{}", Style::default().paint("a completely regular string"));
 //! ```
 //!
@@ -113,7 +113,7 @@
 //! use nu_ansi_term::Color::Fixed;
 //!
 //! println!("{}", Fixed(134).paint("A sort of light purple"));
-//! println!("{}", Fixed(221).on_background(Fixed(124)).paint("Mustard in the ketchup"));
+//! println!("{}", Fixed(221).on(Fixed(124)).paint("Mustard in the ketchup"));
 //! ```
 //!
 //! The first sixteen of these values are the same as the normal and bold
@@ -226,7 +226,7 @@
 //! [`reverse`]: struct.Style.html#method.reverse
 //! [`hidden`]: struct.Style.html#method.hidden
 //! [`strikethrough`]: struct.Style.html#method.strikethrough
-//! [`foreground`]: struct.Style.html#method.foreground
+//! [`fg`]: struct.Style.html#method.foreground
 //! [`on`]: struct.Style.html#method.on
 
 #![crate_name = "nu_ansi_term"]

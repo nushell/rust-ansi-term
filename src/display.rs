@@ -598,7 +598,7 @@ impl Color {
     where
         I: Into<Content<'a, S>>,
     {
-        self.as_foreground().paint(input)
+        self.fg().paint(input)
     }
 }
 

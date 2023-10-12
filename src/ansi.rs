@@ -291,7 +291,7 @@ impl Style {
     /// assert_eq!("\x1b[32m",
     ///            style.infix(Green.bold()).to_string());
     ///
-    /// let style = Green.as_foreground();
+    /// let style = Green.fg();
     /// assert_eq!("\x1b[1m",
     ///            style.infix(Green.bold()).to_string());
     ///
@@ -307,7 +307,7 @@ impl Style {
     /// # {
     /// use nu_ansi_term::Color::Green;
     ///
-    /// let style = Green.as_foreground();
+    /// let style = Green.fg();
     /// assert_eq!("\x1b[01m",
     ///            style.infix(Green.bold()).to_string());
     /// # }
@@ -328,7 +328,7 @@ impl Style {
     /// assert_eq!("\x1b[0m",
     ///            style.suffix().to_string());
     ///
-    /// let style = Green.as_foreground().bold();
+    /// let style = Green.fg().bold();
     /// assert_eq!("\x1b[0m",
     ///            style.suffix().to_string());
     ///
@@ -356,7 +356,7 @@ impl Color {
     ///            Green.prefix().to_string());
     /// ```
     pub fn prefix(self) -> Prefix {
-        Prefix(self.as_foreground())
+        Prefix(self.fg())
     }
 
     /// The infix bytes between this color and `next` color. These are the bytes
@@ -374,7 +374,7 @@ impl Color {
     ///            Red.infix(Yellow).to_string());
     /// ```
     pub fn infix(self, next: Color) -> Infix {
-        Infix(self.as_foreground(), next.as_foreground())
+        Infix(self.fg(), next.fg())
     }
 
     /// The suffix for this color as a `Style`. These are the bytes that
@@ -391,7 +391,7 @@ impl Color {
     ///            Purple.suffix().to_string());
     /// ```
     pub fn suffix(self) -> Suffix {
-        Suffix(self.as_foreground())
+        Suffix(self.fg())
     }
 }
 
@@ -465,31 +465,31 @@ mod test {
     create_content_eq_tests!(
         [plain: Style::default(), "text/plain", "text/plain"]
         [red: Red, "hi", "\x1B[31mhi\x1B[0m"]
-        [black: Black.as_foreground(), "hi", "\x1B[30mhi\x1B[0m"]
+        [black: Black.fg(), "hi", "\x1B[30mhi\x1B[0m"]
         [yellow: Yellow.bold(), "hi", "\x1B[1;33mhi\x1B[0m"]
-        [yellow_bold_2: Yellow.as_foreground().bold(), "hi", "\x1B[1;33mhi\x1B[0m"]
+        [yellow_bold_2: Yellow.fg().bold(), "hi", "\x1B[1;33mhi\x1B[0m"]
         [blue_underline: Blue.underline(), "hi", "\x1B[4;34mhi\x1B[0m"]
         [green_bold_ul: Green.bold().underline(), "hi", "\x1B[1;4;32mhi\x1B[0m"]
         [green_bold_ul_2: Green.underline().bold(), "hi", "\x1B[1;4;32mhi\x1B[0m"]
-        [purple_on_white: Purple.on_background(White), "hi", "\x1B[47;35mhi\x1B[0m"]
-        [purple_on_white_2: Purple.as_foreground().background(White), "hi", "\x1B[47;35mhi\x1B[0m"]
+        [purple_on_white: Purple.on(White), "hi", "\x1B[47;35mhi\x1B[0m"]
+        [purple_on_white_2: Purple.fg().background(White), "hi", "\x1B[47;35mhi\x1B[0m"]
         [yellow_on_blue: Style::new().background(Blue).foreground(Yellow), "hi", "\x1B[44;33mhi\x1B[0m"]
-        [magenta_on_white: Magenta.on_background(White), "hi", "\x1B[47;35mhi\x1B[0m"]
-        [magenta_on_white_2: Magenta.as_foreground().background(White), "hi", "\x1B[47;35mhi\x1B[0m"]
-        [yellow_on_blue_2: Cyan.on_background(Blue).foreground(Yellow), "hi", "\x1B[44;33mhi\x1B[0m"]
-        [yellow_on_blue_reset: Cyan.on_background(Blue).prefix_with_reset().foreground(Yellow), "hi", "\x1B[0m\x1B[44;33mhi\x1B[0m"]
-        [yellow_on_blue_reset_2: Cyan.on_background(Blue).foreground(Yellow).prefix_with_reset(), "hi", "\x1B[0m\x1B[44;33mhi\x1B[0m"]
+        [magenta_on_white: Magenta.on(White), "hi", "\x1B[47;35mhi\x1B[0m"]
+        [magenta_on_white_2: Magenta.fg().background(White), "hi", "\x1B[47;35mhi\x1B[0m"]
+        [yellow_on_blue_2: Cyan.on(Blue).foreground(Yellow), "hi", "\x1B[44;33mhi\x1B[0m"]
+        [yellow_on_blue_reset: Cyan.on(Blue).prefix_with_reset().foreground(Yellow), "hi", "\x1B[0m\x1B[44;33mhi\x1B[0m"]
+        [yellow_on_blue_reset_2: Cyan.on(Blue).foreground(Yellow).prefix_with_reset(), "hi", "\x1B[0m\x1B[44;33mhi\x1B[0m"]
         [cyan_bold_on_white: Cyan.bold().background(White), "hi", "\x1B[1;47;36mhi\x1B[0m"]
         [cyan_ul_on_white: Cyan.underline().background(White), "hi", "\x1B[4;47;36mhi\x1B[0m"]
         [cyan_bold_ul_on_white: Cyan.bold().underline().background(White), "hi", "\x1B[1;4;47;36mhi\x1B[0m"]
         [cyan_ul_bold_on_white: Cyan.underline().bold().background(White), "hi", "\x1B[1;4;47;36mhi\x1B[0m"]
         [fixed: Fixed(100), "hi", "\x1B[38;5;100mhi\x1B[0m"]
-        [fixed_on_purple: Fixed(100).on_background(Purple), "hi", "\x1B[45;38;5;100mhi\x1B[0m"]
-        [fixed_on_fixed: Fixed(100).on_background(Fixed(200)), "hi", "\x1B[48;5;200;38;5;100mhi\x1B[0m"]
+        [fixed_on_purple: Fixed(100).on(Purple), "hi", "\x1B[45;38;5;100mhi\x1B[0m"]
+        [fixed_on_fixed: Fixed(100).on(Fixed(200)), "hi", "\x1B[48;5;200;38;5;100mhi\x1B[0m"]
         [rgb: Rgb(70,130,180), "hi", "\x1B[38;2;70;130;180mhi\x1B[0m"]
-        [rgb_on_blue: Rgb(70,130,180).on_background(Blue), "hi", "\x1B[44;38;2;70;130;180mhi\x1B[0m"]
-        [blue_on_rgb: Blue.on_background(Rgb(70,130,180)), "hi", "\x1B[48;2;70;130;180;34mhi\x1B[0m"]
-        [rgb_on_rgb: Rgb(70,130,180).on_background(Rgb(5,10,15)), "hi", "\x1B[48;2;5;10;15;38;2;70;130;180mhi\x1B[0m"]
+        [rgb_on_blue: Rgb(70,130,180).on(Blue), "hi", "\x1B[44;38;2;70;130;180mhi\x1B[0m"]
+        [blue_on_rgb: Blue.on(Rgb(70,130,180)), "hi", "\x1B[48;2;70;130;180;34mhi\x1B[0m"]
+        [rgb_on_rgb: Rgb(70,130,180).on(Rgb(5,10,15)), "hi", "\x1B[48;2;5;10;15;38;2;70;130;180mhi\x1B[0m"]
         [bold: Style::new().bold(), "hi", "\x1B[1mhi\x1B[0m"]
         [bold_with_reset: Style::new().prefix_with_reset().bold(), "hi", "\x1B[0m\x1B[1mhi\x1B[0m"]
         [bold_with_reset_2: Style::new().bold().prefix_with_reset(), "hi", "\x1B[0m\x1B[1mhi\x1B[0m"]
@@ -501,11 +501,11 @@ mod test {
         [reverse: Style::new().reverse(), "hi", "\x1B[7mhi\x1B[0m"]
         [hidden: Style::new().hidden(), "hi", "\x1B[8mhi\x1B[0m"]
         [stricken: Style::new().strikethrough(), "hi", "\x1B[9mhi\x1B[0m"]
-        [lr_on_lr: LightRed.on_background(LightRed), "hi", "\x1B[101;91mhi\x1B[0m"]
+        [lr_on_lr: LightRed.on(LightRed), "hi", "\x1B[101;91mhi\x1B[0m"]
         @str_cmp [reset_format: Style::new().dimmed().infix(Style::new()).to_string(), "\x1B[0m"]
-        @str_cmp [reset_then_style: White.dimmed().infix(White.as_foreground()).to_string(), "\x1B[0m\x1B[37m"]
-        @str_cmp [color_then_format: White.as_foreground().infix(White.bold()).to_string(), "\x1B[1m"]
-        @str_cmp [color_change: White.as_foreground().infix(Blue.as_foreground()).to_string(), "\x1B[34m"]
+        @str_cmp [reset_then_style: White.dimmed().infix(White.fg()).to_string(), "\x1B[0m\x1B[37m"]
+        @str_cmp [color_then_format: White.fg().infix(White.bold()).to_string(), "\x1B[1m"]
+        @str_cmp [color_change: White.fg().infix(Blue.fg()).to_string(), "\x1B[34m"]
         @str_cmp [no_change: Blue.bold().infix(Blue.bold()).to_string(), ""]
     );
 }
@@ -543,25 +543,25 @@ mod gnu_legacy_test {
         [blue_underline: Blue.underline(), "hi", "\x1B[04;34mhi\x1B[0m"]
         [green_bold_ul: Green.bold().underline(), "hi", "\x1B[01;04;32mhi\x1B[0m"]
         [green_bold_ul_2: Green.underline().bold(), "hi", "\x1B[01;04;32mhi\x1B[0m"]
-        [purple_on_white: Purple.on_background(White), "hi", "\x1B[47;35mhi\x1B[0m"]
+        [purple_on_white: Purple.on(White), "hi", "\x1B[47;35mhi\x1B[0m"]
         [purple_on_white_2: Purple.foreground().background(White), "hi", "\x1B[47;35mhi\x1B[0m"]
         [yellow_on_blue: Style::new().background(Blue).foreground(Yellow), "hi", "\x1B[44;33mhi\x1B[0m"]
-        [yellow_on_blue_reset: Cyan.on_background(Blue).prefix_with_reset().foreground(Yellow), "hi", "\x1B[0m\x1B[44;33mhi\x1B[0m"]
-        [yellow_on_blue_reset_2: Cyan.on_background(Blue).foreground(Yellow).prefix_with_reset(), "hi", "\x1B[0m\x1B[44;33mhi\x1B[0m"]
-        [magenta_on_white: Magenta.on_background(White), "hi", "\x1B[47;35mhi\x1B[0m"]
+        [yellow_on_blue_reset: Cyan.on(Blue).prefix_with_reset().foreground(Yellow), "hi", "\x1B[0m\x1B[44;33mhi\x1B[0m"]
+        [yellow_on_blue_reset_2: Cyan.on(Blue).foreground(Yellow).prefix_with_reset(), "hi", "\x1B[0m\x1B[44;33mhi\x1B[0m"]
+        [magenta_on_white: Magenta.on(White), "hi", "\x1B[47;35mhi\x1B[0m"]
         [magenta_on_white_2: Magenta.foreground().background(White), "hi", "\x1B[47;35mhi\x1B[0m"]
-        [yellow_on_blue_2: Cyan.on_background(Blue).foreground(Yellow), "hi", "\x1B[44;33mhi\x1B[0m"]
+        [yellow_on_blue_2: Cyan.on(Blue).foreground(Yellow), "hi", "\x1B[44;33mhi\x1B[0m"]
         [cyan_bold_on_white: Cyan.bold().background(White), "hi", "\x1B[01;47;36mhi\x1B[0m"]
         [cyan_ul_on_white: Cyan.underline().background(White), "hi", "\x1B[04;47;36mhi\x1B[0m"]
         [cyan_bold_ul_on_white: Cyan.bold().underline().background(White), "hi", "\x1B[01;04;47;36mhi\x1B[0m"]
         [cyan_ul_bold_on_white: Cyan.underline().bold().background(White), "hi", "\x1B[01;04;47;36mhi\x1B[0m"]
         [fixed: Fixed(100), "hi", "\x1B[38;5;100mhi\x1B[0m"]
-        [fixed_on_purple: Fixed(100).on_background(Purple), "hi", "\x1B[45;38;5;100mhi\x1B[0m"]
-        [fixed_on_fixed: Fixed(100).on_background(Fixed(200)), "hi", "\x1B[48;5;200;38;5;100mhi\x1B[0m"]
+        [fixed_on_purple: Fixed(100).on(Purple), "hi", "\x1B[45;38;5;100mhi\x1B[0m"]
+        [fixed_on_fixed: Fixed(100).on(Fixed(200)), "hi", "\x1B[48;5;200;38;5;100mhi\x1B[0m"]
         [rgb: Rgb(70,130,180), "hi", "\x1B[38;2;70;130;180mhi\x1B[0m"]
-        [rgb_on_blue: Rgb(70,130,180).on_background(Blue), "hi", "\x1B[44;38;2;70;130;180mhi\x1B[0m"]
-        [blue_on_rgb: Blue.on_background(Rgb(70,130,180)), "hi", "\x1B[48;2;70;130;180;34mhi\x1B[0m"]
-        [rgb_on_rgb: Rgb(70,130,180).on_background(Rgb(5,10,15)), "hi", "\x1B[48;2;5;10;15;38;2;70;130;180mhi\x1B[0m"]
+        [rgb_on_blue: Rgb(70,130,180).on(Blue), "hi", "\x1B[44;38;2;70;130;180mhi\x1B[0m"]
+        [blue_on_rgb: Blue.on(Rgb(70,130,180)), "hi", "\x1B[48;2;70;130;180;34mhi\x1B[0m"]
+        [rgb_on_rgb: Rgb(70,130,180).on(Rgb(5,10,15)), "hi", "\x1B[48;2;5;10;15;38;2;70;130;180mhi\x1B[0m"]
         [bold: Style::new().bold(), "hi", "\x1B[01mhi\x1B[0m"]
         [bold_with_reset: Style::new().prefix_with_reset().bold(), "hi", "\x1B[0m\x1B[01mhi\x1B[0m"]
         [bold_with_reset_2: Style::new().bold().prefix_with_reset(), "hi", "\x1B[0m\x1B[01mhi\x1B[0m"]
@@ -573,6 +573,6 @@ mod gnu_legacy_test {
         [reverse: Style::new().reverse(), "hi", "\x1B[07mhi\x1B[0m"]
         [hidden: Style::new().hidden(), "hi", "\x1B[08mhi\x1B[0m"]
         [stricken: Style::new().strikethrough(), "hi", "\x1B[09mhi\x1B[0m"]
-        [lr_on_lr: LightRed.on_background(LightRed), "hi", "\x1B[101;91mhi\x1B[0m"]
+        [lr_on_lr: LightRed.on(LightRed), "hi", "\x1B[101;91mhi\x1B[0m"]
     );
 }

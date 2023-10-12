@@ -478,7 +478,7 @@ macro_rules! color_methods {
                 #[doc = r#"println!("{}", style.paint("hi"));"# ]
                 #[doc = r"```"]
                 pub fn [< $flag:lower >](self) -> Style {
-                    self.as_foreground().[< $flag:lower >]()
+                    self.fg().[< $flag:lower >]()
                 }
             )*
         }
@@ -493,10 +493,10 @@ impl Color {
     /// ```
     /// use nu_ansi_term::Color;
     ///
-    /// let style = Color::Rgb(31, 31, 31).as_foreground();
+    /// let style = Color::Rgb(31, 31, 31).fg();
     /// println!("{}", style.paint("eyyyy"));
     /// ```
-    pub fn as_foreground(self) -> Style {
+    pub fn fg(self) -> Style {
         Style::new().foreground(self)
     }
 
@@ -507,10 +507,10 @@ impl Color {
     /// ```
     /// use nu_ansi_term::Color;
     ///
-    /// let style = Color::White.as_background().foreground(Color::Rgb(31, 31, 31));
+    /// let style = Color::White.bg().foreground(Color::Rgb(31, 31, 31));
     /// println!("{}", style.paint("eyyyy"));
     /// ```
-    pub fn as_background(self) -> Style {
+    pub fn bg(self) -> Style {
         Style::new().background(self)
     }
 
@@ -522,16 +522,16 @@ impl Color {
     /// ```
     /// use nu_ansi_term::Color;
     ///
-    /// let style = Color::Rgb(31, 31, 31).on_background(Color::White);
+    /// let style = Color::Rgb(31, 31, 31).on(Color::White);
     /// println!("{}", style.paint("eyyyy"));
     /// ```
-    pub fn on_background(self, bg: Self) -> Style {
+    pub fn on(self, bg: Self) -> Style {
         Style::new().foreground(self).background(bg)
     }
 
     /// Returns a `Style` with the background color set to this color and the
     /// foreground color property set to the given color.
-    pub fn with_foreground(self, fg: Self) -> Style {
+    pub fn under(self, fg: Self) -> Style {
         Style::new().background(self).foreground(fg)
     }
 
@@ -554,12 +554,12 @@ impl From<Color> for Style {
     /// ```
     /// use nu_ansi_term::{Style, Color};
     /// let green_foreground = Style::default().foreground(Color::Green);
-    /// assert_eq!(green_foreground, Color::Green.as_foreground());
+    /// assert_eq!(green_foreground, Color::Green.fg());
     /// assert_eq!(green_foreground, Color::Green.into());
     /// assert_eq!(green_foreground, Style::from(Color::Green));
     /// ```
     fn from(color: Color) -> Style {
-        color.as_foreground()
+        color.fg()
     }
 }
 
