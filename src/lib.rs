@@ -160,7 +160,7 @@
 //!     Red.paint("]"),
 //! ];
 //!
-//! println!("Value: {}", AnsiStrings(strings));
+//! println!("Value: {}", AnsiStrings(strings.iter().cloned()));
 //! ```
 //!
 //! There are several things to note here. Firstly, the [`paint`] method can take
@@ -194,7 +194,7 @@
 //! use nu_ansi_term::Color::Green;
 //! use nu_ansi_term::AnsiByteStrings;
 //!
-//! AnsiByteStrings(&[
+//! AnsiByteStrings([
 //!     Green.paint("user data 1\n".as_bytes()),
 //!     Green.bold().paint("user data 2\n".as_bytes()),
 //! ]).write_to(&mut std::io::stdout()).unwrap();
