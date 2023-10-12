@@ -1,7 +1,7 @@
+use std::borrow::Cow;
 use std::fmt;
 use std::fmt::Debug;
 use std::io;
-use std::{borrow::Cow, ops::Deref};
 
 use crate::{AnsiGenericStrings, FmtArgRenderer, Style};
 
@@ -172,7 +172,7 @@ where
             }
             Content::GenericFmtArg(x) => {
                 let mut s = String::new();
-                write_any_fmt!(fmt_write!(&mut s), "{}", x.render());
+                write_any_fmt!(fmt_write!(&mut s), "{}", x.render()).unwrap();
                 s
             }
         }
@@ -261,3 +261,11 @@ impl<'a> From<Vec<u8>> for Content<'a, [u8]> {
         Content::StrLike(Cow::Owned(s))
     }
 }
+
+// impl<'a, S: 'a + ?Sized + ToOwned> FromIterator<AnsiGenericString<'a, S>> for Content<'a, S> {
+//     fn from_iter<Iterable: IntoIterator<Item = AnsiGenericString<'a, S>>>(
+//         iterable: Iterable,
+//     ) -> Self {
+//         Content::from(AnsiGenericStrings::from_iter(iterable))
+//     }
+// }

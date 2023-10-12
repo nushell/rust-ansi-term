@@ -572,6 +572,10 @@ impl Style {
         AnsiGenericString {
             content: match input.into() {
                 x @ Content::GenericStrings(_) => x.with_context(self),
+                Content::GenericFmtArg(mut x) => {
+                    x.rebase_on(self);
+                    Content::GenericFmtArg(x)
+                }
                 x => x,
             },
             style: self,
@@ -595,14 +599,7 @@ impl Color {
     where
         I: Into<Content<'a, S>>,
     {
-        AnsiGenericString {
-            content: match input.into() {
-                x @ Content::GenericStrings(_) => x.with_context(self.as_foreground()),
-                x => x,
-            },
-            style: self.as_foreground(),
-            oscontrol: None,
-        }
+        self.as_foreground().paint(input)
     }
 }
 
