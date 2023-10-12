@@ -82,7 +82,7 @@
 //! use nu_ansi_term::Style;
 //! use nu_ansi_term::Color::{Blue, Cyan, Yellow};
 //!
-//! println!("Yellow on blue: {}", Style::new().bg(Blue).fg(Yellow).paint("yow!"));
+//! println!("Yellow on blue: {}", Style::new().on(Blue).fg(Yellow).paint("yow!"));
 //! println!("Also yellow on blue: {}", Cyan.on(Blue).fg(Yellow).paint("zow!"));
 //! ```
 //!
@@ -226,7 +226,7 @@
 //! [`reverse`]: struct.Style.html#method.reverse
 //! [`hidden`]: struct.Style.html#method.hidden
 //! [`strikethrough`]: struct.Style.html#method.strikethrough
-//! [`fg`]: struct.Style.html#method.foreground
+//! [`fg`]: struct.Style.html#method.fg
 //! [`on`]: struct.Style.html#method.on
 
 #![crate_name = "nu_ansi_term"]
@@ -243,6 +243,7 @@ doc_comment::doctest!("../README.md");
 /// [`AnsiGenericString`](crate::display::AnsiGenericString) into a sequence of
 /// relevant ANSI escape codes.
 pub mod ansi;
+pub mod utils;
 pub use ansi::{Infix, Prefix, Suffix};
 
 mod style;

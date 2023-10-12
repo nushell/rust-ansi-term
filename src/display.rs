@@ -178,12 +178,12 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericString<'a, S> {
     }
 
     /// Directly access the style
-    pub const fn style(&self) -> &Style {
+    pub const fn style_ref(&self) -> &Style {
         &self.style
     }
 
     /// Directly access the style mutably
-    pub fn style_mut(&mut self) -> &mut Style {
+    pub fn style_ref_mut(&mut self) -> &mut Style {
         &mut self.style
     }
 
@@ -273,7 +273,7 @@ impl<'a, S: 'a + ToOwned + ?Sized> From<AnsiGenericString<'a, S>> for AnsiGeneri
         Self {
             strings: Cow::Owned(vec![value]),
             style_updates: Cow::Owned(vec![StyleUpdate {
-                style_delta: StyleDelta::PrefixUsing(style),
+                style_delta: StyleDelta::ExtraStyles(style),
                 begins_at: 0,
             }]),
         }
@@ -373,8 +373,8 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
     pub fn rebase_on(mut self, base: Style) -> Self {
         for update in self.style_updates.to_mut() {
             update.style_delta = match update.style_delta {
-                StyleDelta::PrefixUsing(style) => {
-                    StyleDelta::PrefixUsing(if style.reset_before_style {
+                StyleDelta::ExtraStyles(style) => {
+                    StyleDelta::ExtraStyles(if style.prefix_before_reset {
                         style.rebase_on(base)
                     } else {
                         style
@@ -390,7 +390,7 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
     #[inline]
     pub fn push(&mut self, s: AnsiGenericString<'a, S>) {
         self.strings.to_mut().push(s.clone());
-        self.push_style(*s.style(), self.strings.len() - 1);
+        self.push_style(*s.style_ref(), self.strings.len() - 1);
     }
 
     #[inline]
@@ -585,7 +585,7 @@ impl Style {
 
 impl Color {
     /// Paints the given text with this color, returning an ANSI string.
-    /// This is a short-cut so you don’t have to use `Blue.fg()` just
+    /// This is a short-cut so you don’t have to use `Blue.normal()` just
     /// to get blue text.
     ///
     /// ```
@@ -693,7 +693,7 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
 
         for (style_command, content, oscontrol) in self.write_iter() {
             match style_command {
-                StyleDelta::PrefixUsing(style) => {
+                StyleDelta::ExtraStyles(style) => {
                     style.write_prefix(w)?;
                     last_is_plain = style.has_no_styling();
                 }

@@ -301,7 +301,7 @@ impl DebugStylePaint for Color {
 impl DebugStylePaint for Infix {
     fn into_style(self) -> Style {
         match self.0.compute_delta(self.1) {
-            StyleDelta::PrefixUsing(style) => style,
+            StyleDelta::ExtraStyles(style) => style,
             StyleDelta::Empty => Style::new(),
         }
     }
@@ -390,13 +390,13 @@ impl DebugDiff for StyleDelta {
             format!("{self:#?} (no diff)")
         } else {
             match (self, expected) {
-                (StyleDelta::PrefixUsing(o), StyleDelta::PrefixUsing(e)) => {
+                (StyleDelta::ExtraStyles(o), StyleDelta::ExtraStyles(e)) => {
                     format!("StyleDelta::PrefixUsing({})", o.debug_diff(e))
                 }
-                (StyleDelta::PrefixUsing(o), StyleDelta::Empty) => {
+                (StyleDelta::ExtraStyles(o), StyleDelta::Empty) => {
                     format!("StyleDelta::PrefixUsing({o:#?} != {expected:#?})")
                 }
-                (StyleDelta::Empty, StyleDelta::PrefixUsing(e)) => {
+                (StyleDelta::Empty, StyleDelta::ExtraStyles(e)) => {
                     format!("StyleDelta::PrefixUsing({self:#?} != {e:#?})")
                 }
                 _ => unreachable!(),

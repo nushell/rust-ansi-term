@@ -52,7 +52,7 @@ impl Style {
         }
 
         // Prefix everything with reset characters if needed
-        if self.is_reset_before_style() {
+        if self.prefix_before_reset {
             write_any_str!(f, "\x1B[0m")?
         }
 
@@ -307,7 +307,7 @@ impl Style {
     /// # {
     /// use nu_ansi_term::Color::Green;
     ///
-    /// let style = Green.fg();
+    /// let style = Green.normal();
     /// assert_eq!("\x1b[01m",
     ///            style.infix(Green.bold()).to_string());
     /// # }
@@ -404,7 +404,7 @@ impl fmt::Display for Prefix {
 impl fmt::Display for Infix {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.0.compute_delta(self.1) {
-            StyleDelta::PrefixUsing(style) => style.write_prefix(fmt_write!(f)),
+            StyleDelta::ExtraStyles(style) => style.write_prefix(fmt_write!(f)),
             StyleDelta::Empty => Ok(()),
         }
     }

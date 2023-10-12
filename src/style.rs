@@ -105,7 +105,7 @@ impl BasedOn for bool {
 )]
 pub struct Style {
     /// Whether this style will be prefixed with [`RESET`](crate::ansi::RESET).
-    pub reset_before_style: bool,
+    pub prefix_before_reset: bool,
     /// Flags representing whether particular formatting properties are set or not.
     pub formats: FormatFlags,
     /// Data regarding the foreground/background color applied by this style.
@@ -115,7 +115,7 @@ pub struct Style {
 impl BasedOn for Style {
     fn rebase_on(self, base: Self) -> Self {
         Style {
-            reset_before_style: self.reset_before_style.rebase_on(base.reset_before_style),
+            prefix_before_reset: self.prefix_before_reset.rebase_on(base.prefix_before_reset),
             formats: self.formats.rebase_on(base.formats),
             coloring: self.coloring.rebase_on(base.coloring),
         }
@@ -145,7 +145,7 @@ impl Default for Style {
     /// ```
     fn default() -> Self {
         Style {
-            reset_before_style: false,
+            prefix_before_reset: false,
             formats: FormatFlags::empty(),
             coloring: Coloring::default(),
         }
@@ -292,7 +292,7 @@ impl Style {
     /// ```
     #[inline]
     pub const fn is_empty(&self) -> bool {
-        self.formats.is_empty() && self.coloring.is_empty() && !self.reset_before_style
+        self.formats.is_empty() && self.coloring.is_empty() && !self.prefix_before_reset
     }
 
     /// Check if style has no formatting or coloring (it might still have `reset_before_style`).
@@ -328,7 +328,7 @@ impl Style {
     /// Create a copy of this style, with the styling properties updated using
     pub fn update_with(self, other: Self) -> Self {
         Self {
-            reset_before_style: !self.reset_before_style && other.reset_before_style,
+            prefix_before_reset: !self.prefix_before_reset && other.prefix_before_reset,
             formats: self.formats.set_flags(other.formats),
             coloring: Coloring {
                 fg: if self.coloring.fg.is_none() {
@@ -347,19 +347,26 @@ impl Style {
 
     /// Return whether or not `reset_before_style` is set.
     pub fn is_reset_before_style(&self) -> bool {
-        self.reset_before_style
+        self.prefix_before_reset
     }
 
     /// Set `reset_before_style` to be `true`.
     pub fn reset_before_style(mut self) -> Self {
-        self.reset_before_style = true;
+        self.prefix_before_reset = true;
         self
     }
 
     ///Set `reset_before_style` to the specified value.
     pub fn set_reset_before_style(mut self, value: bool) -> Self {
-        self.reset_before_style = value;
+        self.prefix_before_reset = value;
         self
+    }
+
+    /// Sets the background color for this style. This is a shim for backwards
+    /// compatibility, which ultimately calls [`Style::bg`](crate::style::Style::bg).
+    #[inline]
+    pub fn on(self, color: Color) -> Self {
+        self.bg(color)
     }
 }
 
