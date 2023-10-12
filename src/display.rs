@@ -2,7 +2,7 @@ use crate::ansi::RESET;
 use crate::difference::StyleDelta;
 use crate::style::{BasedOn, Color, Style};
 use crate::write::{AnyWrite, Content, StrLike, WriteResult};
-use crate::{fmt_write, io_write, write_any_fmt, write_any_str};
+use crate::{fmt_write, io_write, write_fmt, write_str};
 use std::borrow::Cow;
 use std::fmt::{self, Debug};
 use std::io;
@@ -638,16 +638,16 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericString<'a, S> {
     {
         match oscontrol {
             Some(OSControl::Link { url: u, .. }) => {
-                write_any_str!(w, "\x1B]8;;")?;
+                write_str!(w, "\x1B]8;;")?;
                 u.write_to(w)?;
-                write_any_str!(w, "\x1B\x5C")?;
+                write_str!(w, "\x1B\x5C")?;
                 content.write_to(w)?;
-                write_any_str!(w, "\x1B]8;;\x1B\x5C")
+                write_str!(w, "\x1B]8;;\x1B\x5C")
             }
             Some(OSControl::Title) => {
-                write_any_str!(w, "\x1B]2;")?;
+                write_str!(w, "\x1B]2;")?;
                 content.write_to(w)?;
-                write_any_str!(w, "\x1B\x5C")
+                write_str!(w, "\x1B\x5C")
             }
             None => content.write_to(w),
         }
@@ -659,9 +659,9 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericString<'a, S> {
         S: StrLike<'a, W>,
         str: StrLike<'a, W>,
     {
-        write_any_fmt!(w, "{}", self.style.prefix())?;
+        write_fmt!(w, "{}", self.style.prefix())?;
         Self::write_inner(&self.content, &self.oscontrol, w)?;
-        write_any_fmt!(w, "{}", self.style.suffix())
+        write_fmt!(w, "{}", self.style.suffix())
     }
 }
 
@@ -706,7 +706,7 @@ impl<'a, S: 'a + ToOwned + ?Sized> AnsiGenericStrings<'a, S> {
             dbg!(last_is_plain);
             Ok(())
         } else {
-            w.write_any_str(RESET.as_ref())
+            w.write_str(RESET.as_ref())
         }
     }
 }

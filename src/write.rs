@@ -13,34 +13,34 @@ pub type WriteResult<E> = Result<(), E>;
 /// [`fmt::Arguments`].
 /// ```
 /// use std::fmt;
-/// use nu_ansi_term::{Color, fmt_write, write_any_fmt, AnyWrite};
+/// use nu_ansi_term::{Color, fmt_write, write_fmt, AnyWrite};
 ///
 /// let mut s = String::new();
 /// let mut t = String::new();
-/// fmt_write!(&mut s).write_any_fmt(format_args!("{}", Color::Red.paint("hello world!")));
-/// write_any_fmt!(fmt_write!(&mut t), "{}", Color::Red.paint("hello world!"));
+/// fmt_write!(&mut s).write_fmt(format_args!("{}", Color::Red.paint("hello world!")));
+/// write_fmt!(fmt_write!(&mut t), "{}", Color::Red.paint("hello world!"));
 /// assert_eq!(s, t);
 /// ```
 #[macro_export]
-macro_rules! write_any_fmt {
+macro_rules! write_fmt {
     ($w:expr, $($args:tt)*) => {
-        $w.write_any_fmt(std::format_args!($($args)*))
+        $w.write_fmt(std::format_args!($($args)*))
     };
 }
 
 /// Takes an [`AnyWrite`] implementor and writes some [`StrLike`] content to it.
 /// ```
 /// use std::fmt;
-/// use nu_ansi_term::{fmt_write, write_any_str, AnyWrite, StrLike};
+/// use nu_ansi_term::{fmt_write, write_str, AnyWrite, StrLike};
 ///
 /// let mut s = String::new();
 /// let mut t = String::new();
-/// fmt_write!(&mut s).write_any_str("hello world!");
-/// write_any_str!(fmt_write!(&mut t), "hello world!");
+/// fmt_write!(&mut s).write_str("hello world!");
+/// write_str!(fmt_write!(&mut t), "hello world!");
 /// assert_eq!(s, t);
 /// ```
 #[macro_export]
-macro_rules! write_any_str {
+macro_rules! write_str {
     ($w:expr, $($args:tt)*) => {
         $($args)*.write_str_to($w)
     };
@@ -76,21 +76,21 @@ pub trait AnyWrite {
     type Error;
 
     /// Write [`fmt::Arguments`] data (created using [`format_args!`] macro) to this writer.
-    fn write_any_fmt(&mut self, args: fmt::Arguments) -> WriteResult<Self::Error>;
+    fn write_fmt(&mut self, args: fmt::Arguments) -> WriteResult<Self::Error>;
 
     /// Write [`AnyWrite::Buf`] type data to this writer.
-    fn write_any_str(&mut self, s: &Self::Buf) -> WriteResult<Self::Error>;
+    fn write_str(&mut self, s: &Self::Buf) -> WriteResult<Self::Error>;
 }
 
 impl<'a> AnyWrite for dyn fmt::Write + 'a {
     type Buf = str;
     type Error = fmt::Error;
 
-    fn write_any_fmt(&mut self, args: fmt::Arguments) -> WriteResult<Self::Error> {
+    fn write_fmt(&mut self, args: fmt::Arguments) -> WriteResult<Self::Error> {
         fmt::Write::write_fmt(self, args)
     }
 
-    fn write_any_str(&mut self, s: &Self::Buf) -> WriteResult<Self::Error> {
+    fn write_str(&mut self, s: &Self::Buf) -> WriteResult<Self::Error> {
         fmt::Write::write_str(self, s)
     }
 }
@@ -99,11 +99,11 @@ impl<'a> AnyWrite for dyn io::Write + 'a {
     type Buf = [u8];
     type Error = io::Error;
 
-    fn write_any_fmt(&mut self, args: fmt::Arguments) -> WriteResult<Self::Error> {
+    fn write_fmt(&mut self, args: fmt::Arguments) -> WriteResult<Self::Error> {
         io::Write::write_fmt(self, args)
     }
 
-    fn write_any_str(&mut self, s: &Self::Buf) -> WriteResult<Self::Error> {
+    fn write_str(&mut self, s: &Self::Buf) -> WriteResult<Self::Error> {
         io::Write::write_all(self, s)
     }
 }
@@ -120,7 +120,7 @@ where
 
 impl<'a, W: AnyWrite + ?Sized, S: 'a + ?Sized + ToOwned + AsRef<W::Buf>> StrLike<'a, W> for S {
     fn write_str_to(&self, w: &mut W) -> WriteResult<W::Error> {
-        w.write_any_str(self.as_ref())
+        w.write_str(self.as_ref())
     }
 }
 
@@ -208,7 +208,7 @@ impl<'a, S: 'a + ?Sized + ToOwned> Content<'a, S> {
         str: AsRef<T>,
     {
         match self {
-            Content::FmtArgs(args) => w.write_any_fmt(*args),
+            Content::FmtArgs(args) => w.write_fmt(*args),
             Content::StrLike(s) => <S as StrLike<'a, W>>::write_str_to(s, w),
             Content::GenericStrings(x) => x.write_to_any(w),
         }

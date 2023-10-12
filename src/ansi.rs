@@ -2,7 +2,7 @@
 use crate::difference::StyleDelta;
 use crate::style::{Color, FormatFlags, Style};
 use crate::write::{AnyWrite, StrLike, WriteResult};
-use crate::{fmt_write, write_any_fmt, write_any_str};
+use crate::{fmt_write, write_fmt, write_str};
 use std::fmt;
 
 impl FormatFlags {
@@ -53,7 +53,7 @@ impl Style {
 
         // Prefix everything with reset characters if needed
         if self.prefix_before_reset {
-            write_any_str!(f, "\x1B[0m")?
+            write_str!(f, "\x1B[0m")?
         }
 
         if self.has_no_styling() {
@@ -69,10 +69,10 @@ impl Style {
             W::Buf: ToOwned,
         {
             if write_occurred {
-                write_any_str!(f, ";")
+                write_str!(f, ";")
             } else {
                 // front of the ANSI escape code sequence
-                write_any_str!(f, "\x1B[")
+                write_str!(f, "\x1B[")
             }
         }
 
@@ -100,7 +100,7 @@ impl Style {
             write_occurred = write_code(
                 f,
                 flag.as_format_char(),
-                |f, x| write_any_fmt!(f, "{}", x),
+                |f, x| write_fmt!(f, "{}", x),
                 write_occurred,
             )?;
         }
@@ -124,7 +124,7 @@ impl Style {
 
         if write_occurred {
             // All the codes end with an `m`, because reasons.
-            write_any_str!(f, "m")?;
+            write_str!(f, "m")?;
         }
 
         Ok(())
@@ -135,7 +135,7 @@ impl Style {
         if self.is_empty() {
             Ok(())
         } else {
-            write_any_fmt!(f, "{}", RESET)
+            write_fmt!(f, "{}", RESET)
         }
     }
 }
@@ -149,27 +149,27 @@ impl Color {
         str: AsRef<W::Buf>,
     {
         match self {
-            Color::Black => write_any_str!(f, "30"),
-            Color::Red => write_any_str!(f, "31"),
-            Color::Green => write_any_str!(f, "32"),
-            Color::Yellow => write_any_str!(f, "33"),
-            Color::Blue => write_any_str!(f, "34"),
-            Color::Purple => write_any_str!(f, "35"),
-            Color::Magenta => write_any_str!(f, "35"),
-            Color::Cyan => write_any_str!(f, "36"),
-            Color::White => write_any_str!(f, "37"),
-            Color::Fixed(num) => write_any_fmt!(f, "38;5;{}", num),
-            Color::Rgb(r, g, b) => write_any_fmt!(f, "38;2;{};{};{}", r, g, b),
-            Color::Default => write_any_str!(f, "39"),
-            Color::DarkGray => write_any_str!(f, "90"),
-            Color::LightRed => write_any_str!(f, "91"),
-            Color::LightGreen => write_any_str!(f, "92"),
-            Color::LightYellow => write_any_str!(f, "93"),
-            Color::LightBlue => write_any_str!(f, "94"),
-            Color::LightPurple => write_any_str!(f, "95"),
-            Color::LightMagenta => write_any_str!(f, "95"),
-            Color::LightCyan => write_any_str!(f, "96"),
-            Color::LightGray => write_any_str!(f, "97"),
+            Color::Black => write_str!(f, "30"),
+            Color::Red => write_str!(f, "31"),
+            Color::Green => write_str!(f, "32"),
+            Color::Yellow => write_str!(f, "33"),
+            Color::Blue => write_str!(f, "34"),
+            Color::Purple => write_str!(f, "35"),
+            Color::Magenta => write_str!(f, "35"),
+            Color::Cyan => write_str!(f, "36"),
+            Color::White => write_str!(f, "37"),
+            Color::Fixed(num) => write_fmt!(f, "38;5;{}", num),
+            Color::Rgb(r, g, b) => write_fmt!(f, "38;2;{};{};{}", r, g, b),
+            Color::Default => write_str!(f, "39"),
+            Color::DarkGray => write_str!(f, "90"),
+            Color::LightRed => write_str!(f, "91"),
+            Color::LightGreen => write_str!(f, "92"),
+            Color::LightYellow => write_str!(f, "93"),
+            Color::LightBlue => write_str!(f, "94"),
+            Color::LightPurple => write_str!(f, "95"),
+            Color::LightMagenta => write_str!(f, "95"),
+            Color::LightCyan => write_str!(f, "96"),
+            Color::LightGray => write_str!(f, "97"),
         }
     }
 
@@ -178,27 +178,27 @@ impl Color {
         str: AsRef<W::Buf>,
     {
         match self {
-            Color::Black => write_any_str!(f, "40"),
-            Color::Red => write_any_str!(f, "41"),
-            Color::Green => write_any_str!(f, "42"),
-            Color::Yellow => write_any_str!(f, "43"),
-            Color::Blue => write_any_str!(f, "44"),
-            Color::Purple => write_any_str!(f, "45"),
-            Color::Magenta => write_any_str!(f, "45"),
-            Color::Cyan => write_any_str!(f, "46"),
-            Color::White => write_any_str!(f, "47"),
-            Color::Fixed(num) => write_any_fmt!(f, "48;5;{}", num),
-            Color::Rgb(r, g, b) => write_any_fmt!(f, "48;2;{};{};{}", r, g, b),
-            Color::Default => write_any_str!(f, "49"),
-            Color::DarkGray => write_any_str!(f, "100"),
-            Color::LightRed => write_any_str!(f, "101"),
-            Color::LightGreen => write_any_str!(f, "102"),
-            Color::LightYellow => write_any_str!(f, "103"),
-            Color::LightBlue => write_any_str!(f, "104"),
-            Color::LightPurple => write_any_str!(f, "105"),
-            Color::LightMagenta => write_any_str!(f, "105"),
-            Color::LightCyan => write_any_str!(f, "106"),
-            Color::LightGray => write_any_str!(f, "107"),
+            Color::Black => write_str!(f, "40"),
+            Color::Red => write_str!(f, "41"),
+            Color::Green => write_str!(f, "42"),
+            Color::Yellow => write_str!(f, "43"),
+            Color::Blue => write_str!(f, "44"),
+            Color::Purple => write_str!(f, "45"),
+            Color::Magenta => write_str!(f, "45"),
+            Color::Cyan => write_str!(f, "46"),
+            Color::White => write_str!(f, "47"),
+            Color::Fixed(num) => write_fmt!(f, "48;5;{}", num),
+            Color::Rgb(r, g, b) => write_fmt!(f, "48;2;{};{};{}", r, g, b),
+            Color::Default => write_str!(f, "49"),
+            Color::DarkGray => write_str!(f, "100"),
+            Color::LightRed => write_str!(f, "101"),
+            Color::LightGreen => write_str!(f, "102"),
+            Color::LightYellow => write_str!(f, "103"),
+            Color::LightBlue => write_str!(f, "104"),
+            Color::LightPurple => write_str!(f, "105"),
+            Color::LightMagenta => write_str!(f, "105"),
+            Color::LightCyan => write_str!(f, "106"),
+            Color::LightGray => write_str!(f, "107"),
         }
     }
 }
