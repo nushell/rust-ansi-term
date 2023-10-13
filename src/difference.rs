@@ -157,7 +157,7 @@ impl Style {
         } else {
             // No colors or formatting options were turned off. But there might
             // have been things turned on, or colors that have changed. This
-            // case handles that.
+            // case
             let turned_off_in_next = BoolStyle::turned_off(self.into(), next.into());
             if turned_off_in_next.formats.is_empty() && turned_off_in_next.coloring.is_empty() {
                 let turned_on_from_self = BoolStyle::turned_on(self.into(), next.into());

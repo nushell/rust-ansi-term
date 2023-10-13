@@ -10,7 +10,7 @@ fn main() {
     let link = Color::Blue
         .underline()
         .paint("Link to example.com")
-        .hyperlink("https://example.com");
+        .hyperlink_content("https://example.com");
 
     println!("{}", link);
     sleep(sleep_ms);
