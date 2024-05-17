@@ -33,7 +33,7 @@ impl Difference {
     /// happen, this function returns None, meaning that the entire set of
     /// styles should be reset and begun again.
     pub fn between(first: &Style, next: &Style) -> Difference {
-        use self::Difference::*;
+        use self::Difference::{Empty, ExtraStyles, Reset};
 
         // XXX(Havvy): This algorithm is kind of hard to replicate without
         // having the Plain/Foreground enum variants, so I'm just leaving

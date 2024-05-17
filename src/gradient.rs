@@ -13,10 +13,12 @@ pub struct Gradient {
 impl Gradient {
     /// Creates a new [Gradient] with two [Rgb] colors, `start` and `end`
     #[inline]
+    #[must_use]
     pub const fn new(start: Rgb, end: Rgb) -> Self {
         Self { start, end }
     }
 
+    #[must_use]
     pub const fn from_color_rgb(start: Color, end: Color) -> Self {
         let start_grad = match start {
             Color::Rgb(r, g, b) => Rgb { r, g, b },
@@ -34,16 +36,19 @@ impl Gradient {
     }
 
     /// Computes the [Rgb] color between `start` and `end` for `t`
+    #[must_use]
     pub fn at(&self, t: f32) -> Rgb {
         self.start.lerp(self.end, t)
     }
 
     /// Returns the reverse of `self`
     #[inline]
+    #[must_use]
     pub const fn reverse(&self) -> Self {
         Self::new(self.end, self.start)
     }
 
+    #[must_use]
     pub fn build(&self, text: &str, target: TargetGround) -> String {
         let delta = 1.0 / text.len() as f32;
         let mut result = text.char_indices().fold(String::new(), |mut acc, (i, c)| {
@@ -61,6 +66,7 @@ impl Gradient {
     }
 }
 
+#[must_use]
 pub fn build_all_gradient_text(text: &str, foreground: Gradient, background: Gradient) -> String {
     let delta = 1.0 / text.len() as f32;
     let mut result = text.char_indices().fold(String::new(), |mut acc, (i, c)| {
@@ -91,6 +97,7 @@ pub enum TargetGround {
 
 impl TargetGround {
     #[inline]
+    #[must_use]
     pub const fn code(&self) -> u8 {
         match self {
             Self::Foreground => 30,

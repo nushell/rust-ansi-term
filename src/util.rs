@@ -1,13 +1,13 @@
 use crate::display::{AnsiString, AnsiStrings};
-use std::ops::Deref;
 
-/// Return a substring of the given AnsiStrings sequence, while keeping the formatting.
+/// Return a substring of the given `AnsiStrings` sequence, while keeping the formatting.
+#[must_use]
 pub fn sub_string(start: usize, len: usize, strs: &AnsiStrings) -> Vec<AnsiString<'static>> {
     let mut vec = Vec::new();
     let mut pos = start;
     let mut len_rem = len;
 
-    for i in strs.0.iter() {
+    for i in strs.0 {
         let frag_len = i.string.len();
         if pos >= frag_len {
             pos -= frag_len;
@@ -34,20 +34,22 @@ pub fn sub_string(start: usize, len: usize, strs: &AnsiStrings) -> Vec<AnsiStrin
 }
 
 /// Return a concatenated copy of `strs` without the formatting, as an allocated `String`.
+#[must_use]
 pub fn unstyle(strs: &AnsiStrings) -> String {
     let mut s = String::new();
 
-    for i in strs.0.iter() {
-        s += i.string.deref();
+    for i in strs.0 {
+        s += &*i.string;
     }
 
     s
 }
 
-/// Return the unstyled length of AnsiStrings. This is equaivalent to `unstyle(strs).len()`.
+/// Return the unstyled length of `AnsiStrings`. This is equivalent to `unstyle(strs).len()`.
+#[must_use]
 pub fn unstyled_len(strs: &AnsiStrings) -> usize {
     let mut l = 0;
-    for i in strs.0.iter() {
+    for i in strs.0 {
         l += i.string.len();
     }
     l

@@ -34,52 +34,52 @@ impl fmt::Debug for Style {
 
             if let Some(fg) = self.foreground {
                 if written_anything {
-                    fmt.write_str(", ")?
+                    fmt.write_str(", ")?;
                 }
                 written_anything = true;
-                write!(fmt, "fg({:?})", fg)?
+                write!(fmt, "fg({fg:?})")?;
             }
 
             if let Some(bg) = self.background {
                 if written_anything {
-                    fmt.write_str(", ")?
+                    fmt.write_str(", ")?;
                 }
                 written_anything = true;
-                write!(fmt, "on({:?})", bg)?
+                write!(fmt, "on({bg:?})")?;
             }
 
             {
                 let mut write_flag = |name| {
                     if written_anything {
-                        fmt.write_str(", ")?
+                        fmt.write_str(", ")?;
                     }
                     written_anything = true;
                     fmt.write_str(name)
                 };
 
                 if self.is_blink {
-                    write_flag("blink")?
+                    write_flag("blink")?;
                 }
                 if self.is_bold {
-                    write_flag("bold")?
+                    write_flag("bold")?;
                 }
                 if self.is_dimmed {
-                    write_flag("dimmed")?
+                    write_flag("dimmed")?;
                 }
                 if self.is_hidden {
-                    write_flag("hidden")?
+                    write_flag("hidden")?;
                 }
                 if self.is_italic {
-                    write_flag("italic")?
+                    write_flag("italic")?;
                 }
                 if self.is_reverse {
-                    write_flag("reverse")?
+                    write_flag("reverse")?;
                 }
                 if self.is_strikethrough {
-                    write_flag("strikethrough")?
+                    write_flag("strikethrough")?;
                 }
                 if self.is_underline {
-                    write_flag("underline")?
+                    write_flag("underline")?;
                 }
             }
 
@@ -133,10 +133,10 @@ mod test {
 }";
 
         let style = Blue.bold();
-        let style_fmt_debug = format!("{:?}", style);
-        let style_fmt_pretty = format!("{:#?}", style);
-        println!("style_fmt_debug:\n{}", style_fmt_debug);
-        println!("style_fmt_pretty:\n{}", style_fmt_pretty);
+        let style_fmt_debug = format!("{style:?}");
+        let style_fmt_pretty = format!("{style:#?}");
+        println!("style_fmt_debug:\n{style_fmt_debug}");
+        println!("style_fmt_pretty:\n{style_fmt_pretty}");
 
         assert_eq!(expected_debug, style_fmt_debug);
         assert_eq!(expected_pretty_repat, style_fmt_pretty);

@@ -218,6 +218,7 @@ pub type AnsiStrings<'a> = AnsiGenericStrings<'a, str>;
 
 /// A function to construct an `AnsiStrings` instance.
 #[allow(non_snake_case)]
+#[must_use]
 pub const fn AnsiStrings<'a>(arg: &'a [AnsiString<'a>]) -> AnsiStrings<'a> {
     AnsiGenericStrings(arg)
 }
@@ -228,6 +229,7 @@ pub type AnsiByteStrings<'a> = AnsiGenericStrings<'a, [u8]>;
 
 /// A function to construct an `AnsiByteStrings` instance.
 #[allow(non_snake_case)]
+#[must_use]
 pub const fn AnsiByteStrings<'a>(arg: &'a [AnsiByteString<'a>]) -> AnsiByteStrings<'a> {
     AnsiGenericStrings(arg)
 }
@@ -347,7 +349,7 @@ where
     &'a S: AsRef<[u8]>,
 {
     fn write_to_any<W: AnyWrite<Wstr = S> + ?Sized>(&self, w: &mut W) -> Result<(), W::Error> {
-        use self::Difference::*;
+        use self::Difference::{Empty, ExtraStyles, Reset};
 
         let first = match self.0.first() {
             None => return Ok(()),
@@ -372,7 +374,7 @@ where
         // have already been written by this point.
         if let Some(last) = self.0.last() {
             if !last.style.is_plain() {
-                write!(w, "{}", RESET)?;
+                write!(w, "{RESET}")?;
             }
         }
 
@@ -409,54 +411,34 @@ mod tests {
         assert!(joined.starts_with("\x1B[32mBefore is Green. \x1B[0m"));
         assert!(
             joined.ends_with(unstyled_s.as_str()),
-            "{:?} does not end with {:?}",
-            joined,
-            unstyled_s
+            "{joined:?} does not end with {unstyled_s:?}"
         );
 
         // check that RESET does not follow unstyled when appending styled
         let joined = AnsiStrings(&[unstyled.clone(), after_g.clone()]).to_string();
         assert!(
             joined.starts_with(unstyled_s.as_str()),
-            "{:?} does not start with {:?}",
-            joined,
-            unstyled_s
+            "{joined:?} does not start with {unstyled_s:?}"
         );
         assert!(joined.ends_with("\x1B[32m After is Green.\x1B[0m"));
 
         // does not introduce spurious SGR codes (reset or otherwise) adjacent
         // to plain strings
         let joined = AnsiStrings(&[unstyled.clone()]).to_string();
-        assert!(
-            !joined.contains("\x1B["),
-            "{:?} does contain \\x1B[",
-            joined
-        );
+        assert!(!joined.contains("\x1B["), "{joined:?} does contain \\x1B[");
         let joined = AnsiStrings(&[before.clone(), unstyled.clone()]).to_string();
-        assert!(
-            !joined.contains("\x1B["),
-            "{:?} does contain \\x1B[",
-            joined
-        );
+        assert!(!joined.contains("\x1B["), "{joined:?} does contain \\x1B[");
         let joined = AnsiStrings(&[before.clone(), unstyled.clone(), after.clone()]).to_string();
-        assert!(
-            !joined.contains("\x1B["),
-            "{:?} does contain \\x1B[",
-            joined
-        );
+        assert!(!joined.contains("\x1B["), "{joined:?} does contain \\x1B[");
         let joined = AnsiStrings(&[unstyled.clone(), after.clone()]).to_string();
-        assert!(
-            !joined.contains("\x1B["),
-            "{:?} does contain \\x1B[",
-            joined
-        );
+        assert!(!joined.contains("\x1B["), "{joined:?} does contain \\x1B[");
     }
 
     #[test]
     fn title() {
         let title = AnsiGenericString::title("Test Title");
         assert_eq!(title.clone().to_string(), "\x1B]2;Test Title\x1B\\");
-        idempotent(title)
+        idempotent(title);
     }
 
     #[test]

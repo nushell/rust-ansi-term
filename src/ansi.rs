@@ -15,7 +15,7 @@ impl Style {
 
         // Prefix everything with reset characters if needed
         if self.prefix_with_reset {
-            write!(f, "\x1B[0m")?
+            write!(f, "\x1B[0m")?;
         }
 
         // Write the codes’ prefix, then write numbers, separated by
@@ -31,33 +31,33 @@ impl Style {
                 written_anything = true;
                 #[cfg(feature = "gnu_legacy")]
                 write!(f, "0")?;
-                write!(f, "{}", c)?;
+                write!(f, "{c}")?;
                 Ok(())
             };
 
             if self.is_bold {
-                write_char('1')?
+                write_char('1')?;
             }
             if self.is_dimmed {
-                write_char('2')?
+                write_char('2')?;
             }
             if self.is_italic {
-                write_char('3')?
+                write_char('3')?;
             }
             if self.is_underline {
-                write_char('4')?
+                write_char('4')?;
             }
             if self.is_blink {
-                write_char('5')?
+                write_char('5')?;
             }
             if self.is_reverse {
-                write_char('7')?
+                write_char('7')?;
             }
             if self.is_hidden {
-                write_char('8')?
+                write_char('8')?;
             }
             if self.is_strikethrough {
-                write_char('9')?
+                write_char('9')?;
             }
         }
 
@@ -111,7 +111,7 @@ impl Style {
         if self.is_plain() {
             Ok(())
         } else {
-            write!(f, "{}", RESET)
+            write!(f, "{RESET}")
         }
     }
 }
@@ -131,8 +131,8 @@ impl Color {
             Color::Magenta => write!(f, "35"),
             Color::Cyan => write!(f, "36"),
             Color::White => write!(f, "37"),
-            Color::Fixed(num) => write!(f, "38;5;{}", num),
-            Color::Rgb(r, g, b) => write!(f, "38;2;{};{};{}", r, g, b),
+            Color::Fixed(num) => write!(f, "38;5;{num}"),
+            Color::Rgb(r, g, b) => write!(f, "38;2;{r};{g};{b}"),
             Color::Default => write!(f, "39"),
             Color::DarkGray => write!(f, "90"),
             Color::LightRed => write!(f, "91"),
@@ -157,8 +157,8 @@ impl Color {
             Color::Magenta => write!(f, "45"),
             Color::Cyan => write!(f, "46"),
             Color::White => write!(f, "47"),
-            Color::Fixed(num) => write!(f, "48;5;{}", num),
-            Color::Rgb(r, g, b) => write!(f, "48;2;{};{};{}", r, g, b),
+            Color::Fixed(num) => write!(f, "48;5;{num}"),
+            Color::Rgb(r, g, b) => write!(f, "48;2;{r};{g};{b}"),
             Color::Default => write!(f, "49"),
             Color::DarkGray => write!(f, "100"),
             Color::LightRed => write!(f, "101"),
@@ -226,7 +226,7 @@ impl Style {
     /// # }
     /// ```
     ///     
-    /// # Examples with gnu_legacy feature enabled
+    /// # Examples with `gnu_legacy` feature enabled
     /// Styles like bold, underlined, etc. are two-digit now
     ///
     /// ```
@@ -243,6 +243,7 @@ impl Style {
     ///            style.prefix().to_string());
     /// # }
     /// ```
+    #[must_use]
     pub const fn prefix(self) -> Prefix {
         Prefix(self)
     }
@@ -270,7 +271,7 @@ impl Style {
     ///            style.infix(style).to_string());
     /// # }
     /// ```
-    /// # Examples with gnu_legacy feature enabled
+    /// # Examples with `gnu_legacy` feature enabled
     /// Styles like bold, underlined, etc. are two-digit now
     /// ```
     /// # #[cfg(feature = "gnu_legacy")]
@@ -282,6 +283,7 @@ impl Style {
     ///            style.infix(Green.bold()).to_string());
     /// # }
     /// ```
+    #[must_use]
     pub const fn infix(self, next: Style) -> Infix {
         Infix(self, next)
     }
@@ -306,6 +308,7 @@ impl Style {
     /// assert_eq!("",
     ///            style.suffix().to_string());
     /// ```
+    #[must_use]
     pub const fn suffix(self) -> Suffix {
         Suffix(self)
     }
@@ -325,6 +328,7 @@ impl Color {
     /// assert_eq!("\x1b[32m",
     ///            Green.prefix().to_string());
     /// ```
+    #[must_use]
     pub fn prefix(self) -> Prefix {
         Prefix(self.normal())
     }
@@ -343,6 +347,7 @@ impl Color {
     /// assert_eq!("\x1b[33m",
     ///            Red.infix(Yellow).to_string());
     /// ```
+    #[must_use]
     pub fn infix(self, next: Color) -> Infix {
         Infix(self.normal(), next.normal())
     }
@@ -360,6 +365,7 @@ impl Color {
     /// assert_eq!("\x1b[0m",
     ///            Purple.suffix().to_string());
     /// ```
+    #[must_use]
     pub fn suffix(self) -> Suffix {
         Suffix(self.normal())
     }
