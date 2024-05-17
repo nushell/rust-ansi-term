@@ -8,10 +8,7 @@ fn main() {
 
     let sleep_ms = parse_cmd_args();
     let title = AnsiGenericString::title("My Title");
-    println!(
-        "{}Terminal title set for the next {:?} milliseconds",
-        title, sleep_ms
-    );
+    println!("{title}Terminal title set for the next {sleep_ms:?} milliseconds");
 
     // sleep because often prompts change this before you can see
     // the results

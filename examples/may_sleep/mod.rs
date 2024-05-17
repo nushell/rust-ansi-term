@@ -15,9 +15,9 @@ pub fn parse_cmd_args() -> Option<u16> {
                     .unwrap_or(String::from("5000u16"))
                     .parse::<u16>()
                     .ok()
-                    .and_then(|parsed| {
+                    .map(|parsed| {
                         skip_next = true;
-                        Some(parsed)
+                        parsed
                     });
             }
             _ => {}
@@ -29,7 +29,7 @@ pub fn parse_cmd_args() -> Option<u16> {
 
 pub fn sleep(sleep_ms: Option<u16>) {
     if let Some(sleep_ms) = sleep_ms {
-        let sleep_ms = std::time::Duration::from_millis(sleep_ms as u64);
+        let sleep_ms = std::time::Duration::from_millis(u64::from(sleep_ms));
         std::thread::sleep(sleep_ms);
     }
 }

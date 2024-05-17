@@ -12,6 +12,6 @@ fn main() {
         .paint("Link to example.com")
         .hyperlink("https://example.com");
 
-    println!("{}", link);
+    println!("{link}");
     sleep(sleep_ms);
 }

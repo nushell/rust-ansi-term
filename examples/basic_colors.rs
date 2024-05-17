@@ -1,4 +1,7 @@
-use nu_ansi_term::{Color::*, Style};
+use nu_ansi_term::{
+    Color::{Black, Blue, Cyan, Green, Purple, Red, White, Yellow},
+    Style,
+};
 
 // This example prints out the 16 basic colors.
 

@@ -25,13 +25,13 @@ fn main() {
     let gradient3 = gradient.reverse();
 
     let build_fg = gradient.build(text, TargetGround::Foreground);
-    println!("{}", build_fg);
+    println!("{build_fg}");
     let build_bg = gradient.build(text, TargetGround::Background);
-    println!("{}", build_bg);
+    println!("{build_bg}");
     let bgt = build_all_gradient_text(text, gradient, gradient2);
-    println!("{}", bgt);
+    println!("{bgt}");
     let bgt2 = build_all_gradient_text(text, gradient, gradient3);
-    println!("{}", bgt2);
+    println!("{bgt2}");
 
     println!(
         "{}",
