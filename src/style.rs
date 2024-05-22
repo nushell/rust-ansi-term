@@ -60,8 +60,20 @@ impl Style {
     /// let style = Style::new();
     /// println!("{}", style.paint("hi"));
     /// ```
-    pub fn new() -> Style {
-        Style::default()
+    pub const fn new() -> Style {
+        Style {
+            foreground: None,
+            background: None,
+            is_bold: false,
+            is_dimmed: false,
+            is_italic: false,
+            is_underline: false,
+            is_blink: false,
+            is_reverse: false,
+            is_hidden: false,
+            is_strikethrough: false,
+            prefix_with_reset: false,
+        }
     }
 
     /// Returns a [`Style`] with the `Style.prefix_with_reset` property set.
@@ -262,7 +274,7 @@ impl Style {
     /// assert_eq!(false, Style::default().bold().is_plain());
     /// ```
     pub fn is_plain(self) -> bool {
-        self == Style::default()
+        self == Style::new()
     }
 }
 
@@ -278,19 +290,7 @@ impl Default for Style {
     /// assert_eq!("txt", Style::default().paint("txt").to_string());
     /// ```
     fn default() -> Style {
-        Style {
-            foreground: None,
-            background: None,
-            is_bold: false,
-            is_dimmed: false,
-            is_italic: false,
-            is_underline: false,
-            is_blink: false,
-            is_reverse: false,
-            is_hidden: false,
-            is_strikethrough: false,
-            prefix_with_reset: false,
-        }
+        Style::new()
     }
 }
 
