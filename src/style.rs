@@ -42,7 +42,7 @@ pub struct Style {
     /// Whether this style is hidden.
     pub is_hidden: bool,
 
-    /// Whether this style is struckthrough.
+    /// Whether this style is strikethrough.
     pub is_strikethrough: bool,
 
     /// Wether this style is always displayed starting with a reset code to clear any remaining style artifacts
