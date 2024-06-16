@@ -1,6 +1,5 @@
 // Code liberally borrowed from here
 // https://github.com/navierr/coloriz
-use std::u32;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Rgb {
     /// Red
