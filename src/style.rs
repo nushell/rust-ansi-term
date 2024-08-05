@@ -273,7 +273,7 @@ impl Style {
     /// assert_eq!(true,  Style::default().is_plain());
     /// assert_eq!(false, Style::default().bold().is_plain());
     /// ```
-    pub const fn is_plain(self) -> bool {
+    pub fn is_plain(self) -> bool {
         self == Style::new()
     }
 }
