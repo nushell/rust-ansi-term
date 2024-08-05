@@ -273,8 +273,8 @@ impl Style {
     /// assert_eq!(true,  Style::default().is_plain());
     /// assert_eq!(false, Style::default().bold().is_plain());
     /// ```
-    pub fn is_plain(self) -> bool {
-        self == Style::default()
+    pub const fn is_plain(self) -> bool {
+        self == Style::new()
     }
 }
 
@@ -404,10 +404,10 @@ impl Color {
     /// let style = Color::Red.normal();
     /// println!("{}", style.paint("hi"));
     /// ```
-    pub fn normal(self) -> Style {
+    pub const fn normal(self) -> Style {
         Style {
             foreground: Some(self),
-            ..Style::default()
+            ..Style::new()
         }
     }
 
@@ -422,11 +422,11 @@ impl Color {
     /// let style = Color::Green.bold();
     /// println!("{}", style.paint("hey"));
     /// ```
-    pub fn bold(self) -> Style {
+    pub const fn bold(self) -> Style {
         Style {
             foreground: Some(self),
             is_bold: true,
-            ..Style::default()
+            ..Style::new()
         }
     }
 
@@ -441,11 +441,11 @@ impl Color {
     /// let style = Color::Yellow.dimmed();
     /// println!("{}", style.paint("sup"));
     /// ```
-    pub fn dimmed(self) -> Style {
+    pub const fn dimmed(self) -> Style {
         Style {
             foreground: Some(self),
             is_dimmed: true,
-            ..Style::default()
+            ..Style::new()
         }
     }
 
@@ -460,11 +460,11 @@ impl Color {
     /// let style = Color::Blue.italic();
     /// println!("{}", style.paint("greetings"));
     /// ```
-    pub fn italic(self) -> Style {
+    pub const fn italic(self) -> Style {
         Style {
             foreground: Some(self),
             is_italic: true,
-            ..Style::default()
+            ..Style::new()
         }
     }
 
@@ -479,11 +479,11 @@ impl Color {
     /// let style = Color::Purple.underline();
     /// println!("{}", style.paint("salutations"));
     /// ```
-    pub fn underline(self) -> Style {
+    pub const fn underline(self) -> Style {
         Style {
             foreground: Some(self),
             is_underline: true,
-            ..Style::default()
+            ..Style::new()
         }
     }
 
@@ -498,11 +498,11 @@ impl Color {
     /// let style = Color::Cyan.blink();
     /// println!("{}", style.paint("wazzup"));
     /// ```
-    pub fn blink(self) -> Style {
+    pub const fn blink(self) -> Style {
         Style {
             foreground: Some(self),
             is_blink: true,
-            ..Style::default()
+            ..Style::new()
         }
     }
 
@@ -517,11 +517,11 @@ impl Color {
     /// let style = Color::Black.reverse();
     /// println!("{}", style.paint("aloha"));
     /// ```
-    pub fn reverse(self) -> Style {
+    pub const fn reverse(self) -> Style {
         Style {
             foreground: Some(self),
             is_reverse: true,
-            ..Style::default()
+            ..Style::new()
         }
     }
 
@@ -536,11 +536,11 @@ impl Color {
     /// let style = Color::White.hidden();
     /// println!("{}", style.paint("ahoy"));
     /// ```
-    pub fn hidden(self) -> Style {
+    pub const fn hidden(self) -> Style {
         Style {
             foreground: Some(self),
             is_hidden: true,
-            ..Style::default()
+            ..Style::new()
         }
     }
 
@@ -555,11 +555,11 @@ impl Color {
     /// let style = Color::Fixed(244).strikethrough();
     /// println!("{}", style.paint("yo"));
     /// ```
-    pub fn strikethrough(self) -> Style {
+    pub const fn strikethrough(self) -> Style {
         Style {
             foreground: Some(self),
             is_strikethrough: true,
-            ..Style::default()
+            ..Style::new()
         }
     }
 
@@ -574,11 +574,11 @@ impl Color {
     /// let style = Color::Fixed(244).reset_before_style();
     /// println!("{}", style.paint("yo"));
     /// ```
-    pub fn reset_before_style(self) -> Style {
+    pub const fn reset_before_style(self) -> Style {
         Style {
             foreground: Some(self),
             prefix_with_reset: true,
-            ..Style::default()
+            ..Style::new()
         }
     }
 
@@ -593,11 +593,11 @@ impl Color {
     /// let style = Color::Rgb(31, 31, 31).on(Color::White);
     /// println!("{}", style.paint("eyyyy"));
     /// ```
-    pub fn on(self, background: Color) -> Style {
+    pub const fn on(self, background: Color) -> Style {
         Style {
             foreground: Some(self),
             background: Some(background),
-            ..Style::default()
+            ..Style::new()
         }
     }
 }
