@@ -1,4 +1,5 @@
 use crate::{rgb::Rgb, Color};
+use alloc::{format, string::String};
 
 /// Linear color gradient between two color stops
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

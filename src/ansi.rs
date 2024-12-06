@@ -1,7 +1,7 @@
 #![allow(missing_docs)]
 use crate::style::{Color, Style};
 use crate::write::AnyWrite;
-use std::fmt;
+use core::fmt;
 
 impl Style {
     /// Write any bytes that go *before* a piece of text to the given writer.

@@ -2,9 +2,8 @@ use crate::ansi::RESET;
 use crate::difference::Difference;
 use crate::style::{Color, Style};
 use crate::write::AnyWrite;
-use std::borrow::Cow;
-use std::fmt;
-use std::io;
+use alloc::borrow::{Cow, ToOwned};
+use core::fmt;
 
 #[derive(Eq, PartialEq, Debug)]
 enum OSControl<'a, S: 'a + ToOwned + ?Sized>
@@ -282,11 +281,12 @@ impl<'a> fmt::Display for AnsiString<'a> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a> AnsiByteString<'a> {
     /// Write an `AnsiByteString` to an `io::Write`.  This writes the escape
     /// sequences for the associated `Style` around the bytes.
-    pub fn write_to<W: io::Write>(&self, w: &mut W) -> io::Result<()> {
-        let w: &mut dyn io::Write = w;
+    pub fn write_to<W: std::io::Write>(&self, w: &mut W) -> std::io::Result<()> {
+        let w: &mut dyn std::io::Write = w;
         self.write_to_any(w)
     }
 }
@@ -331,12 +331,13 @@ impl<'a> fmt::Display for AnsiStrings<'a> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a> AnsiByteStrings<'a> {
     /// Write `AnsiByteStrings` to an `io::Write`.  This writes the minimal
     /// escape sequences for the associated `Style`s around each set of
     /// bytes.
-    pub fn write_to<W: io::Write>(&self, w: &mut W) -> io::Result<()> {
-        let w: &mut dyn io::Write = w;
+    pub fn write_to<W: std::io::Write>(&self, w: &mut W) -> std::io::Result<()> {
+        let w: &mut dyn std::io::Write = w;
         self.write_to_any(w)
     }
 }

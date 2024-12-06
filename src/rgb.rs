@@ -1,3 +1,5 @@
+use alloc::{format, string::String};
+
 // Code liberally borrowed from here
 // https://github.com/navierr/coloriz
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -149,7 +151,7 @@ const fn rgb_negate(rgb: &Rgb) -> Rgb {
     Rgb::new(255 - rgb.r, 255 - rgb.g, 255 - rgb.b)
 }
 
-impl std::ops::Add<Rgb> for Rgb {
+impl core::ops::Add<Rgb> for Rgb {
     type Output = Rgb;
 
     fn add(self, rhs: Rgb) -> Self::Output {
@@ -157,7 +159,7 @@ impl std::ops::Add<Rgb> for Rgb {
     }
 }
 
-impl std::ops::Add<&Rgb> for Rgb {
+impl core::ops::Add<&Rgb> for Rgb {
     type Output = Rgb;
 
     fn add(self, rhs: &Rgb) -> Self::Output {
@@ -165,7 +167,7 @@ impl std::ops::Add<&Rgb> for Rgb {
     }
 }
 
-impl std::ops::Add<Rgb> for &Rgb {
+impl core::ops::Add<Rgb> for &Rgb {
     type Output = Rgb;
 
     fn add(self, rhs: Rgb) -> Self::Output {
@@ -173,7 +175,7 @@ impl std::ops::Add<Rgb> for &Rgb {
     }
 }
 
-impl std::ops::Add<&Rgb> for &Rgb {
+impl core::ops::Add<&Rgb> for &Rgb {
     type Output = Rgb;
 
     fn add(self, rhs: &Rgb) -> Self::Output {
@@ -181,7 +183,7 @@ impl std::ops::Add<&Rgb> for &Rgb {
     }
 }
 
-impl std::ops::Sub<Rgb> for Rgb {
+impl core::ops::Sub<Rgb> for Rgb {
     type Output = Rgb;
 
     fn sub(self, rhs: Rgb) -> Self::Output {
@@ -189,7 +191,7 @@ impl std::ops::Sub<Rgb> for Rgb {
     }
 }
 
-impl std::ops::Sub<&Rgb> for Rgb {
+impl core::ops::Sub<&Rgb> for Rgb {
     type Output = Rgb;
 
     fn sub(self, rhs: &Rgb) -> Self::Output {
@@ -197,7 +199,7 @@ impl std::ops::Sub<&Rgb> for Rgb {
     }
 }
 
-impl std::ops::Sub<Rgb> for &Rgb {
+impl core::ops::Sub<Rgb> for &Rgb {
     type Output = Rgb;
 
     fn sub(self, rhs: Rgb) -> Self::Output {
@@ -205,7 +207,7 @@ impl std::ops::Sub<Rgb> for &Rgb {
     }
 }
 
-impl std::ops::Sub<&Rgb> for &Rgb {
+impl core::ops::Sub<&Rgb> for &Rgb {
     type Output = Rgb;
 
     fn sub(self, rhs: &Rgb) -> Self::Output {
@@ -213,7 +215,7 @@ impl std::ops::Sub<&Rgb> for &Rgb {
     }
 }
 
-impl std::ops::Mul<f32> for Rgb {
+impl core::ops::Mul<f32> for Rgb {
     type Output = Rgb;
 
     fn mul(self, rhs: f32) -> Self::Output {
@@ -221,7 +223,7 @@ impl std::ops::Mul<f32> for Rgb {
     }
 }
 
-impl std::ops::Mul<&f32> for Rgb {
+impl core::ops::Mul<&f32> for Rgb {
     type Output = Rgb;
 
     fn mul(self, rhs: &f32) -> Self::Output {
@@ -229,7 +231,7 @@ impl std::ops::Mul<&f32> for Rgb {
     }
 }
 
-impl std::ops::Mul<f32> for &Rgb {
+impl core::ops::Mul<f32> for &Rgb {
     type Output = Rgb;
 
     fn mul(self, rhs: f32) -> Self::Output {
@@ -237,7 +239,7 @@ impl std::ops::Mul<f32> for &Rgb {
     }
 }
 
-impl std::ops::Mul<&f32> for &Rgb {
+impl core::ops::Mul<&f32> for &Rgb {
     type Output = Rgb;
 
     fn mul(self, rhs: &f32) -> Self::Output {
@@ -245,7 +247,7 @@ impl std::ops::Mul<&f32> for &Rgb {
     }
 }
 
-impl std::ops::Mul<Rgb> for f32 {
+impl core::ops::Mul<Rgb> for f32 {
     type Output = Rgb;
 
     fn mul(self, rhs: Rgb) -> Self::Output {
@@ -253,7 +255,7 @@ impl std::ops::Mul<Rgb> for f32 {
     }
 }
 
-impl std::ops::Mul<&Rgb> for f32 {
+impl core::ops::Mul<&Rgb> for f32 {
     type Output = Rgb;
 
     fn mul(self, rhs: &Rgb) -> Self::Output {
@@ -261,7 +263,7 @@ impl std::ops::Mul<&Rgb> for f32 {
     }
 }
 
-impl std::ops::Mul<Rgb> for &f32 {
+impl core::ops::Mul<Rgb> for &f32 {
     type Output = Rgb;
 
     fn mul(self, rhs: Rgb) -> Self::Output {
@@ -269,7 +271,7 @@ impl std::ops::Mul<Rgb> for &f32 {
     }
 }
 
-impl std::ops::Mul<&Rgb> for &f32 {
+impl core::ops::Mul<&Rgb> for &f32 {
     type Output = Rgb;
 
     fn mul(self, rhs: &Rgb) -> Self::Output {
@@ -277,7 +279,7 @@ impl std::ops::Mul<&Rgb> for &f32 {
     }
 }
 
-impl std::ops::Neg for Rgb {
+impl core::ops::Neg for Rgb {
     type Output = Rgb;
 
     fn neg(self) -> Self::Output {
@@ -285,7 +287,7 @@ impl std::ops::Neg for Rgb {
     }
 }
 
-impl std::ops::Neg for &Rgb {
+impl core::ops::Neg for &Rgb {
     type Output = Rgb;
 
     fn neg(self) -> Self::Output {

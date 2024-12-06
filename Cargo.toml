@@ -17,6 +17,8 @@ repository = "https://github.com/nushell/nu-ansi-term"
 doctest = true
 
 [features]
+default = ["std"]
+std = []
 derive_serde_style = ["serde"]
 gnu_legacy = []
 
