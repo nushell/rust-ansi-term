@@ -1,5 +1,5 @@
 use crate::style::Style;
-use std::fmt;
+use core::fmt;
 
 /// Styles have a special `Debug` implementation that only shows the fields that
 /// are set. Fields that haven’t been touched aren’t included in the output.

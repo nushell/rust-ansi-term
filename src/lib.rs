@@ -229,6 +229,7 @@
 //! [`fg`]: struct.Style.html#method.fg
 //! [`on`]: struct.Style.html#method.on
 
+#![cfg_attr(not(any(test, feature = "std")), no_std)]
 #![crate_name = "nu_ansi_term"]
 #![crate_type = "rlib"]
 #![warn(missing_copy_implementations)]
@@ -238,6 +239,8 @@
 
 #[cfg(test)]
 doc_comment::doctest!("../README.md");
+
+extern crate alloc;
 
 pub mod ansi;
 pub use ansi::{Infix, Prefix, Suffix};

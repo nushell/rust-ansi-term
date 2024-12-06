@@ -1,5 +1,6 @@
 use crate::display::{AnsiString, AnsiStrings};
-use std::ops::Deref;
+use alloc::{string::String, vec::Vec};
+use core::ops::Deref;
 
 /// Return a substring of the given AnsiStrings sequence, while keeping the formatting.
 pub fn sub_string(start: usize, len: usize, strs: &AnsiStrings) -> Vec<AnsiString<'static>> {
